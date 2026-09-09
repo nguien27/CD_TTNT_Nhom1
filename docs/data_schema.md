@@ -1,421 +1,211 @@
-# DATA SCHEMA – Cấu trúc dữ liệu chuẩn của hệ thống nhân viên
+# DATA SCHEMA — SCHEMA LINH HOẠT CHO THÔNG TIN NHÂN VIÊN
 
-**Phiên bản:** 0.2 – CK1  
-**Mục đích:** Là hợp đồng dữ liệu chung cho File Reader, OCR, Extraction, Normalization, SQLite/SQL, Search, Backend và UI.
+**Phiên bản:** 0.2  
+**Ngày cập nhật:** 09/09/2026
 
----
+## 1. Nguyên tắc chính
 
-## 1. Nguyên tắc chung
+Hệ thống không sử dụng schema cố định gồm 6 trường. Từ phiên bản 0.2:
 
-Mọi dữ liệu nhân viên sau khi đi qua bước trích xuất/chuẩn hóa phải được chuyển về cùng một schema.
+- `ho_ten` là **trường nghiệp vụ bắt buộc duy nhất** để record tham gia tìm kiếm theo tên.
+- Tất cả trường còn lại là **dynamic extra fields — trường mở rộng động**.
+- Số lượng trường mở rộng phụ thuộc dữ liệu đầu vào và không bị giới hạn cố định.
 
-Tên field trong code sử dụng `snake_case`, tiếng Việt không dấu:
+## 2. Cấu trúc record chuẩn nội bộ
 
-```text
-ma_nhan_vien
-ho_ten
-don_vi
-chuc_vu
-email
-so_dien_thoai
-```
-
-Không module nào được tự đổi tên field chuẩn nếu chưa được leader duyệt và cập nhật tài liệu này.
-
----
-
-## 2. Schema chuẩn v0.2
-
-| Field chuẩn | Kiểu logic | Bắt buộc | Cho phép rỗng | Ý nghĩa |
-|---|---|---:|---:|---|
-| `ma_nhan_vien` | string | Có | Không | Mã định danh nhân viên |
-| `ho_ten` | string | Có | Không | Họ và tên đầy đủ |
-| `don_vi` | string | Có | Không | Đơn vị/phòng/ban công tác |
-| `chuc_vu` | string | Không | Có | Chức vụ/vị trí công việc |
-| `email` | string | Không | Có | Email nhân viên |
-| `so_dien_thoai` | string | Không | Có | Số điện thoại/liên hệ |
-
-Ba trường cốt lõi bắt buộc để một record được chấp nhận trong baseline:
-
-```text
-ma_nhan_vien
-ho_ten
-don_vi
-```
-
----
-
-## 3. Ví dụ record chuẩn
-
-```json
+```python
 {
-  "ma_nhan_vien": "NV001",
-  "ho_ten": "Nguyễn Văn A",
-  "don_vi": "Phòng Công nghệ thông tin",
-  "chuc_vu": "Chuyên viên",
-  "email": "mock001@example.com",
-  "so_dien_thoai": "SDT_MOCK_001"
-}
-```
-
-Record có trường tùy chọn bị thiếu:
-
-```json
-{
-  "ma_nhan_vien": "NV002",
-  "ho_ten": "Nguyễn Văn B",
-  "don_vi": "Phòng Nhân sự",
-  "chuc_vu": null,
-  "email": null,
-  "so_dien_thoai": null
-}
-```
-
----
-
-## 4. Danh sách record chuẩn
-
-Các module trao đổi danh sách nhân viên dưới dạng `list[dict]` hoặc cấu trúc tương đương có thể serialize thành JSON.
-
-```json
-[
-  {
-    "ma_nhan_vien": "NV001",
     "ho_ten": "Nguyễn Văn A",
-    "don_vi": "Phòng CNTT",
-    "chuc_vu": "Chuyên viên",
-    "email": "mock001@example.com",
-    "so_dien_thoai": "SDT_MOCK_001"
-  }
-]
+    "ho_ten_chuan": "nguyen van a",
+    "thong_tin_mo_rong": {
+        "Mã NV": "NV001",
+        "Đơn vị": "Phòng CNTT",
+        "Chức vụ": "Chuyên viên",
+        "Dự án đang làm": "Hệ thống ERP",
+        "Kỹ năng": "Python, SQL"
+    }
+}
 ```
 
----
+### Giải thích
 
-## 5. Bảng ánh xạ tên cột – Alias Mapping
+- `ho_ten`: tên gốc dùng hiển thị.
+- `ho_ten_chuan`: tên đã chuẩn hóa để tìm kiếm; có thể đưa về chữ thường, gộp khoảng trắng, tạo bản không dấu.
+- `thong_tin_mo_rong`: JSON/dictionary chứa **mọi trường còn lại** của record.
 
-### 5.1. Mã nhân viên → `ma_nhan_vien`
+## 3. Nhận diện `ho_ten`
 
-```text
-Mã NV
-Ma NV
-Mã nhân viên
-Ma nhan vien
-Mã cán bộ
-Ma can bo
-Mã CB
-Employee ID
-EmployeeID
-Staff ID
-ID nhân viên
-```
+Các alias ban đầu:
 
-### 5.2. Họ tên → `ho_ten`
+| Tên trường nguồn | Canonical field |
+|---|---|
+| Họ tên | `ho_ten` |
+| Họ và tên | `ho_ten` |
+| Tên nhân viên | `ho_ten` |
+| Tên NV | `ho_ten` |
+| Tên CBCNV | `ho_ten` |
+| Họ tên nhân viên | `ho_ten` |
+| Full Name | `ho_ten` |
+| Employee Name | `ho_ten` |
+| Staff Name | `ho_ten` |
 
-```text
-Họ tên
-Ho ten
-Họ và tên
-Tên nhân viên
-Tên CBCNV
-Full Name
-Employee Name
-Name
-```
+Việc mở rộng alias phải thông qua leader hoặc cập nhật tài liệu chung.
 
-### 5.3. Đơn vị → `don_vi`
+## 4. Trường mở rộng
 
-```text
-Đơn vị
-Don vi
-Đơn vị công tác
-Phòng ban
-Phòng
-Ban
-Bộ phận
-Department
-Unit
-Division
-```
+Tất cả trường khác được giữ lại. Ví dụ:
 
-### 5.4. Chức vụ → `chuc_vu`
+- Mã NV
+- Mã cán bộ
+- Đơn vị
+- Phòng ban
+- Chức vụ
+- Email
+- Số điện thoại
+- Dự án đang làm
+- Kỹ năng
+- Ngày vào làm
+- Trình độ
+- Chuyên môn
+- Địa điểm làm việc
+- Người quản lý
+- Bất kỳ trường mới nào xuất hiện trong file
 
-```text
-Chức vụ
-Chuc vu
-Vị trí
-Vị trí việc làm
-Chức danh
-Position
-Job Title
-Role
-```
+### Quy tắc bảo toàn
 
-### 5.5. Email → `email`
+Nếu file có 15 cột và một cột được ánh xạ thành `ho_ten`, 14 cột còn lại phải được giữ trong `thong_tin_mo_rong` nếu có giá trị.
 
-```text
-Email
-E-mail
-Mail
-Thư điện tử
-Email công ty
-Company Email
-```
+## 5. Validation
 
-### 5.6. Số điện thoại → `so_dien_thoai`
+### Cấp file
 
-```text
-Số điện thoại
-So dien thoai
-Điện thoại
-SĐT
-SDT
-Phone
-Phone Number
-Mobile
-```
+- Không phát hiện được trường `ho_ten` → file không đủ điều kiện nhập vào kho tìm kiếm theo tên.
+- Hệ thống trả cảnh báo rõ ràng thay vì crash.
 
----
+### Cấp record
 
-## 6. Quy tắc chuẩn hóa tên cột
+- `ho_ten` rỗng / null / chỉ có khoảng trắng → record không hợp lệ cho search; đánh dấu lỗi hoặc bỏ qua record.
+- Các trường mở rộng rỗng → có thể bỏ khỏi JSON hoặc lưu `null` theo implementation thống nhất.
 
-Trước khi so khớp alias:
-
-1. chuyển về string;
-2. trim khoảng trắng đầu/cuối;
-3. gộp nhiều khoảng trắng liên tiếp;
-4. chuyển về chữ thường để so sánh;
-5. có thể tạo phiên bản không dấu;
-6. bỏ ký tự phân cách không cần thiết khi so sánh như `_`, `-`, `.`, `:`;
-7. giữ tên cột gốc trong metadata/log để debug.
+## 6. Chuẩn hóa họ tên
 
 Ví dụ:
 
 ```text
-"  MÃ   NHÂN-VIÊN  "
-        ↓
-"mã nhân viên"
-        ↓
-ma_nhan_vien
+"   NGUYỄN    VĂN   A "
+      ↓
+ho_ten = "NGUYỄN VĂN A"
+ho_ten_chuan = "nguyen van a"
 ```
 
----
+Các bước gợi ý:
 
-## 7. Quy tắc chuẩn hóa giá trị
+1. trim đầu/cuối;
+2. gộp nhiều khoảng trắng;
+3. chuẩn hóa Unicode;
+4. tạo bản chữ thường;
+5. tạo bản không dấu cho search.
 
-### 7.1. `ma_nhan_vien`
+Không được làm thay đổi `ho_ten` gốc dùng hiển thị ngoài các chuẩn hóa khoảng trắng cần thiết.
 
-- lưu dưới dạng string;
-- trim khoảng trắng;
-- không được rỗng;
-- không ép sang số;
-- phải giữ zero đầu nếu có;
-- kiểm tra duplicate.
-
-```text
-" NV001 " → "NV001"
-"00123"   → "00123"
-```
-
-### 7.2. `ho_ten`
-
-- trim khoảng trắng;
-- gộp nhiều khoảng trắng thành một;
-- giữ Unicode tiếng Việt;
-- không bắt buộc đổi kiểu viết hoa/thường trong dữ liệu gốc;
-- Search Engine tự tạo dạng chuẩn hóa phục vụ tìm kiếm.
-
-### 7.3. `don_vi`
-
-- trim/gộp khoảng trắng;
-- giữ tên đơn vị ở dạng có dấu;
-- có thể chuẩn hóa alias đơn vị sau nếu dữ liệu thật yêu cầu.
-
-### 7.4. `chuc_vu`
-
-- cho phép `null`;
-- trim/gộp khoảng trắng nếu có.
-
-### 7.5. `email`
-
-- cho phép `null`;
-- trim khoảng trắng;
-- nên chuyển lowercase;
-- có thể validate định dạng cơ bản;
-- email sai định dạng không được làm toàn pipeline crash.
-
-### 7.6. `so_dien_thoai`
-
-- lưu dạng string;
-- cho phép `null`;
-- không ép số để tránh mất zero đầu;
-- rule chuẩn hóa chi tiết chờ dữ liệu thật.
-
----
-
-## 8. Giá trị rỗng
-
-Các giá trị sau có thể được chuẩn hóa thành `null` khi phù hợp:
-
-```text
-""
-"N/A"
-"NA"
-"null"
-"None"
-"Không có"
-```
-
-Không được tự biến dữ liệu hợp lệ thành null chỉ vì chuỗi khác lạ; cần có rule rõ ràng.
-
----
-
-## 9. Record hợp lệ và record lỗi
-
-### Record hợp lệ
-
-Có đầy đủ tối thiểu:
-
-```text
-ma_nhan_vien
-ho_ten
-don_vi
-```
-
-### Record lỗi
-
-Ví dụ:
-
-- thiếu `ma_nhan_vien`;
-- thiếu `ho_ten`;
-- thiếu `don_vi`;
-- trùng `ma_nhan_vien` theo policy import;
-- OCR quá lỗi khiến không xác định được trường bắt buộc.
-
-Record lỗi phải được ghi nhận để báo cáo, không âm thầm bỏ qua.
-
----
-
-## 10. Schema SQL chính thức – SQLite
-
-Database chính thức của bản demo là **SQLite**, truy vấn bằng SQL.
-
-### 10.1. Bảng `nhan_vien`
-
-DDL baseline:
+## 7. Schema SQLite chính thức
 
 ```sql
 CREATE TABLE IF NOT EXISTS nhan_vien (
-    ma_nhan_vien TEXT PRIMARY KEY,
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
     ho_ten TEXT NOT NULL,
-    don_vi TEXT NOT NULL,
-    chuc_vu TEXT,
-    email TEXT,
-    so_dien_thoai TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+    ho_ten_chuan TEXT NOT NULL,
+    thong_tin_mo_rong TEXT NOT NULL DEFAULT '{}',
+    nguon_file TEXT,
+    nguon_sheet TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 ```
 
-Lý do dùng `TEXT` cho mã và số điện thoại:
+### Lý do có `id` nội bộ
 
-- mã có thể chứa chữ;
-- mã/số điện thoại có thể có zero đầu;
-- không dùng chúng để tính toán số học.
+- File có thể không có mã nhân viên.
+- Mã nhân viên có thể nằm trong trường mở rộng.
+- Hai người có thể trùng họ tên.
+- Không được dùng `ho_ten` làm khóa chính.
 
-### 10.2. Index phục vụ Search
+## 8. Ví dụ file chỉ có 3 trường
 
-Baseline có thể tạo index:
+Nguồn:
 
-```sql
-CREATE INDEX IF NOT EXISTS idx_nhan_vien_ho_ten
-ON nhan_vien(ho_ten);
-
-CREATE INDEX IF NOT EXISTS idx_nhan_vien_don_vi
-ON nhan_vien(don_vi);
+```text
+Họ tên | Đơn vị | Dự án
 ```
 
-Fuzzy Search có thể cần xử lý thêm ở tầng Python/Search Engine thay vì chỉ SQL thuần.
+Record chuẩn:
 
-### 10.3. Policy duplicate
-
-Baseline đề xuất:
-
-- `ma_nhan_vien` là khóa chính;
-- record cùng mã không được chèn thành hai nhân viên riêng;
-- CK2 chốt một trong hai policy:
-  - `UPDATE/UPSERT` record cũ; hoặc
-  - từ chối và trả cảnh báo duplicate.
-
-Cho đến khi CK2 chốt, module phải phát hiện duplicate và báo rõ.
-
----
-
-## 11. Metadata nguồn dữ liệu
-
-Để phục vụ debug/test, pipeline có thể giữ metadata ngoài bảng nhân viên chính:
-
-```json
+```python
 {
-  "ten_file": "employees_scan.pdf",
-  "loai_file": "pdf",
-  "pdf_mode": "scan",
-  "ocr_da_su_dung": true,
-  "ocr_engine": "tesseract",
-  "canh_bao": []
+    "ho_ten": "Nguyễn Văn A",
+    "ho_ten_chuan": "nguyen van a",
+    "thong_tin_mo_rong": {
+        "Đơn vị": "CNTT",
+        "Dự án": "ERP"
+    }
 }
 ```
 
-Metadata này không bắt buộc phải nằm trong bảng `nhan_vien`.
+→ Hợp lệ.
 
----
+## 9. Ví dụ file có 15 trường
 
-## 12. Metadata OCR
+Nếu file có:
 
-Khi nguồn là PDF scan, output trung gian nên có tối thiểu:
+```text
+Họ tên, Mã NV, Đơn vị, Chức vụ, Email, SĐT, Dự án, Kỹ năng,
+Ngày vào làm, Trình độ, Chuyên môn, Địa điểm, Quản lý, Loại HĐ, Ghi chú
+```
 
-- `pdf_mode`: `text` hoặc `scan`;
-- `ocr_da_su_dung`: boolean;
-- `ocr_engine`: tên engine nếu biết;
-- `ocr_confidence`: điểm tin cậy nếu engine cung cấp;
-- `ocr_text`: text sau OCR hoặc đường dẫn/field tương đương;
-- `canh_bao`: các vấn đề nhận dạng.
+thì:
 
-Không bắt buộc mọi OCR engine đều có confidence score.
+- `Họ tên` → `ho_ten`;
+- 14 trường còn lại → `thong_tin_mo_rong`.
 
----
+Không được tự loại bỏ trường chỉ vì hệ thống chưa từng gặp tên cột đó.
 
-## 13. Search result schema
+## 10. Ví dụ file không có họ tên
 
-Kết quả Search Engine có thể mở rộng EmployeeRecord bằng:
+Nguồn:
 
-```json
+```text
+Mã NV | Đơn vị | Chức vụ
+```
+
+Kết quả:
+
+```python
 {
-  "ma_nhan_vien": "NV001",
-  "ho_ten": "Nguyễn Văn A",
-  "don_vi": "Phòng CNTT",
-  "chuc_vu": "Chuyên viên",
-  "email": "mock001@example.com",
-  "so_dien_thoai": "SDT_MOCK_001",
-  "do_khop": 100.0,
-  "kieu_khop": "partial"
+    "trang_thai": "error",
+    "ma_loi": "MISSING_NAME_FIELD",
+    "thong_bao": "Không phát hiện trường họ tên. File chưa thể dùng để tìm kiếm nhân viên theo tên."
 }
 ```
 
-`do_khop` ưu tiên thang 0–100 để UI dễ hiển thị.
+## 11. Search result schema
 
----
+```python
+{
+    "id": 1,
+    "ho_ten": "Nguyễn Văn A",
+    "do_khop": 96.5,
+    "thong_tin_mo_rong": {
+        "Mã NV": "NV001",
+        "Đơn vị": "CNTT",
+        "Dự án": "ERP",
+        "Kỹ năng": "Python"
+    }
+}
+```
 
-## 14. Quy tắc thay đổi schema
+## 12. Nguyên tắc UI
 
-Nếu thành viên cần thêm field:
+UI không được giả định cố định các cột `Mã NV`, `Đơn vị`, `Chức vụ`.
 
-1. tạo đề xuất;
-2. nêu lý do;
-3. đánh giá ảnh hưởng tới SQL, Search, Backend và UI;
-4. leader duyệt;
-5. cập nhật `data_schema.md`;
-6. cập nhật SQLite migration/schema;
-7. thông báo toàn nhóm.
-
-Không tự thay đổi schema trong branch cá nhân mà không báo.
+- `ho_ten` luôn hiển thị.
+- Các trường khác được render động từ `thong_tin_mo_rong`.
+- Nếu nhiều kết quả có tập field khác nhau, UI có thể dùng card/detail view hoặc bảng động theo union các field.

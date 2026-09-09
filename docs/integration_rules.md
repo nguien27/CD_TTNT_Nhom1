@@ -1,568 +1,252 @@
-# INTEGRATION RULES – Quy tắc tích hợp giữa các module
+# INTEGRATION RULES — QUY TẮC TÍCH HỢP GIỮA CÁC MODULE
 
-**Phiên bản:** 0.2 – CK1  
-**Quyết định đã chốt:** SQLite/SQL là Storage chính thức; OCR bắt buộc cho PDF scan.  
-**Mục đích:** Đảm bảo các thành viên phát triển module độc lập nhưng ghép được trong CK2.
+**Phiên bản:** 0.2  
+**Ngày cập nhật:** 09/09/2026
 
----
+## 1. Mục tiêu
 
-## 1. Nguyên tắc bắt buộc
+Đảm bảo CK1-02, CK1-03, CK1-04 và CK1-05 có thể phát triển độc lập nhưng ghép được ở CK2.
 
-1. Mọi module dùng Data Schema trong `data_schema.md`.
-2. Không tự đổi tên field chuẩn nếu chưa được leader duyệt.
-3. Module phải có input/output rõ ràng.
-4. Lỗi phải có cấu trúc hoặc exception có ý nghĩa; không dùng `print` làm cơ chế giao tiếp chính giữa module.
-5. Không hard-code đường dẫn máy cá nhân.
-6. Không hard-code dữ liệu nhân viên vào business logic ngoài mock/test.
-7. Mọi module phải có test nhỏ trước khi tích hợp.
-8. Storage chính thức là SQLite; không thay bằng CSV/DataFrame trong phiên bản tích hợp cuối.
-9. PDF scan phải đi qua OCR trước Extraction.
-10. CK2 tích hợp sớm, không chờ mọi module hoàn hảo mới ghép.
+Quy tắc cốt lõi:
 
----
+> `ho_ten` là field bắt buộc. Mọi field khác phải được bảo toàn dưới dạng dữ liệu mở rộng, không hard-code 6 field cũ.
 
-## 2. Kiểu dữ liệu chung
+## 2. Contract 1 — File Reader Output
 
-### EmployeeRecord
+File Reader không được tự loại cột chưa biết.
+
+Ví dụ structured file:
 
 ```python
 {
-    "ma_nhan_vien": str,
-    "ho_ten": str,
-    "don_vi": str,
-    "chuc_vu": str | None,
-    "email": str | None,
-    "so_dien_thoai": str | None
+    "trang_thai": "success",
+    "ten_file": "employees.xlsx",
+    "loai_file": "xlsx",
+    "pdf_mode": None,
+    "ocr_da_su_dung": False,
+    "du_lieu": [
+        {
+            "Họ tên": "Nguyễn Văn A",
+            "Đơn vị": "CNTT",
+            "Dự án": "ERP",
+            "Kỹ năng": "Python"
+        }
+    ],
+    "loi": None
 }
 ```
 
-### EmployeeList
+Ví dụ PDF scan:
 
 ```python
-list[EmployeeRecord]
-```
-
-Nếu dùng `dataclass`, Pydantic model hoặc class riêng, khi qua ranh giới API/module phải convert được về JSON-compatible dict.
-
----
-
-## 3. Contract CK1-01 → tất cả module
-
-CK1-01 cung cấp:
-
-- `requirements.md`;
-- `data_schema.md`;
-- `architecture.md`;
-- `integration_rules.md`;
-- `mock_data.xlsx`.
-
-CK1-02 đến CK1-05 phải dùng bộ tài liệu này làm chuẩn.
-
----
-
-## 4. Contract File Reader
-
-### Hàm logic đề xuất
-
-```python
-def doc_file(duong_dan_hoac_file) -> dict:
-    ...
-```
-
-### Success response chung
-
-```json
 {
-  "trang_thai": "success",
-  "loai_file": "xlsx",
-  "ten_file": "employees.xlsx",
-  "du_lieu": [],
-  "metadata": {},
-  "loi": null,
-  "canh_bao": []
-}
-```
-
-`du_lieu` có thể là:
-
-- list of dict cho dữ liệu bảng;
-- text/tables cho DOCX/PDF;
-- nhưng phải được mô tả rõ.
-
-### Error response
-
-```json
-{
-  "trang_thai": "error",
-  "loai_file": "pdf",
-  "ten_file": "employees.pdf",
-  "du_lieu": null,
-  "metadata": {},
-  "loi": "Không đọc được file",
-  "canh_bao": []
-}
-```
-
-File Reader không tự ghi SQLite và không tự Search.
-
----
-
-## 5. Contract PDF Reader + OCR
-
-### Quy tắc xử lý
-
-```text
-PDF
- ↓
-Thử lấy text trực tiếp
- ↓
-Text đủ dùng?
-  ├─ Có → trả text
-  └─ Không → OCR → trả text OCR
-```
-
-### Success response PDF text
-
-```json
-{
-  "trang_thai": "success",
-  "loai_file": "pdf",
-  "ten_file": "employees.pdf",
-  "du_lieu": {
-    "text": "...",
-    "tables": []
-  },
-  "metadata": {
-    "pdf_mode": "text",
-    "ocr_da_su_dung": false,
-    "ocr_engine": null,
-    "ocr_confidence": null
-  },
-  "loi": null,
-  "canh_bao": []
-}
-```
-
-### Success response PDF scan
-
-```json
-{
-  "trang_thai": "success",
-  "loai_file": "pdf",
-  "ten_file": "employees_scan.pdf",
-  "du_lieu": {
-    "text": "Mã NV: NV001\nHọ tên: Nguyễn Văn A\n...",
-    "tables": []
-  },
-  "metadata": {
-    "pdf_mode": "scan",
-    "ocr_da_su_dung": true,
-    "ocr_engine": "tesseract",
-    "ocr_confidence": null
-  },
-  "loi": null,
-  "canh_bao": []
-}
-```
-
-Không bắt buộc engine phải là Tesseract; nếu thay engine thì giữ contract này.
-
-### OCR error
-
-```json
-{
-  "trang_thai": "error",
-  "loai_file": "pdf",
-  "ten_file": "scan_bad.pdf",
-  "du_lieu": null,
-  "metadata": {
-    "pdf_mode": "scan",
-    "ocr_da_su_dung": true
-  },
-  "loi": "OCR không trích xuất được nội dung sử dụng được",
-  "canh_bao": []
-}
-```
-
----
-
-## 6. Contract Extraction / Mapping / Normalization
-
-### Input
-
-Output từ File Reader/OCR.
-
-### Hàm logic đề xuất
-
-```python
-def chuan_hoa_du_lieu(ket_qua_doc_file: dict) -> dict:
-    ...
-```
-
-### Output
-
-```json
-{
-  "trang_thai": "success",
-  "nguon": {
+    "trang_thai": "success",
     "ten_file": "employees_scan.pdf",
     "loai_file": "pdf",
-    "ocr_da_su_dung": true
-  },
-  "tong_so_ban_ghi": 50,
-  "so_hop_le": 48,
-  "so_loi": 2,
-  "nhan_vien": [],
-  "loi_ban_ghi": [],
-  "canh_bao": []
+    "pdf_mode": "scan",
+    "ocr_da_su_dung": True,
+    "du_lieu": "...text OCR hoặc cấu trúc trích xuất được...",
+    "loi": None
 }
 ```
 
-`nhan_vien` bắt buộc theo EmployeeRecord.
+## 3. Contract 2 — Normalized Record
 
-`loi_ban_ghi` tối thiểu:
+Sau khi phát hiện field họ tên:
 
-```json
+```python
 {
-  "dong": 12,
-  "ly_do": "Thiếu ma_nhan_vien",
-  "du_lieu_goc": {}
+    "ho_ten": "Nguyễn Văn A",
+    "ho_ten_chuan": "nguyen van a",
+    "thong_tin_mo_rong": {
+        "Đơn vị": "CNTT",
+        "Dự án": "ERP",
+        "Kỹ năng": "Python"
+    },
+    "nguon_file": "employees.xlsx",
+    "nguon_sheet": "Sheet1"
 }
 ```
 
----
+### Rule
 
-## 7. Contract SQLite / SQL Storage
+- `ho_ten` không được xuất hiện lặp lại trong `thong_tin_mo_rong`.
+- Field khác phải được giữ nếu có giá trị.
+- Có thể trim tên field đầu/cuối; không tự đổi nghĩa field.
 
-### 7.1. Database
+## 4. Contract 3 — Missing Name Field
 
-Database baseline:
+Nếu không tìm được field họ tên:
 
-```text
-data/employee.db
+```python
+{
+    "trang_thai": "error",
+    "ma_loi": "MISSING_NAME_FIELD",
+    "thong_bao": "Không phát hiện trường họ tên trong dữ liệu đầu vào.",
+    "chi_tiet": {
+        "ten_file": "employees.xlsx",
+        "cac_truong_da_doc": ["Mã NV", "Đơn vị", "Chức vụ"]
+    }
+}
 ```
 
-Schema SQL nằm trong:
+Không được tạo record giả có `ho_ten=None` rồi cho vào search index.
 
-```text
-src/storage/schema.sql
-```
+## 5. Contract 4 — SQLite Storage
 
-hoặc một module migration tương đương.
-
-### 7.2. Bảng chính
+Backend/storage nhận normalized record và lưu:
 
 ```sql
-CREATE TABLE IF NOT EXISTS nhan_vien (
-    ma_nhan_vien TEXT PRIMARY KEY,
-    ho_ten TEXT NOT NULL,
-    don_vi TEXT NOT NULL,
-    chuc_vu TEXT,
-    email TEXT,
-    so_dien_thoai TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
+INSERT INTO nhan_vien (
+    ho_ten,
+    ho_ten_chuan,
+    thong_tin_mo_rong,
+    nguon_file,
+    nguon_sheet
+) VALUES (?, ?, ?, ?, ?);
 ```
 
-### 7.3. Interface logic tối thiểu
+`thong_tin_mo_rong` được JSON serialize trước khi lưu.
+
+## 6. Contract 5 — Search Function
+
+Interface logic đề xuất:
 
 ```python
-def khoi_tao_database() -> None:
-    ...
-
-def them_nhan_vien(nhan_vien: dict) -> dict:
-    ...
-
-def them_nhieu_nhan_vien(ds_nhan_vien: list[dict]) -> dict:
-    ...
-
-def lay_nhan_vien_theo_ma(ma_nhan_vien: str) -> dict | None:
-    ...
-
-def lay_tat_ca_nhan_vien() -> list[dict]:
-    ...
-
-def tim_ung_vien_theo_ten(query: str, gioi_han: int = 100) -> list[dict]:
+def tim_nhan_vien(query: str, danh_sach_record: list[dict]) -> list[dict]:
     ...
 ```
 
-### 7.4. Quy tắc SQL
-
-- dùng parameterized query, không nối chuỗi query từ input người dùng;
-- transaction khi insert nhiều record;
-- rollback nếu transaction thất bại;
-- trả EmployeeRecord theo schema chuẩn;
-- không trả row tuple tùy ý qua ranh giới module nếu chưa convert;
-- `ma_nhan_vien` là khóa chính;
-- duplicate phải được báo hoặc xử lý theo policy đã chốt.
-
-Ví dụ đúng:
+Hoặc khi tích hợp DB:
 
 ```python
-cursor.execute(
-    "SELECT * FROM nhan_vien WHERE ma_nhan_vien = ?",
-    (ma_nhan_vien,)
-)
+def tim_nhan_vien(query: str) -> list[dict]:
+    ...
 ```
 
-Không làm:
+Search result:
 
 ```python
-sql = "SELECT * FROM nhan_vien WHERE ma_nhan_vien = '" + ma_nhan_vien + "'"
+[
+    {
+        "id": 1,
+        "ho_ten": "Nguyễn Văn A",
+        "do_khop": 96.5,
+        "thong_tin_mo_rong": {
+            "Mã NV": "NV001",
+            "Đơn vị": "CNTT",
+            "Dự án": "ERP",
+            "Kỹ năng": "Python"
+        }
+    }
+]
 ```
 
-### 7.5. Import response đề xuất
+Search Engine không được chỉ trả `ma_nhan_vien/ho_ten/don_vi/chuc_vu`.
+
+## 7. Contract 6 — Backend API
+
+### GET /health
+
+```json
+{"status": "ok"}
+```
+
+### GET /search?q=Nguyen%20Van
 
 ```json
 {
   "trang_thai": "success",
-  "tong_nhan": 50,
-  "so_insert": 48,
-  "so_duplicate": 1,
-  "so_loi": 1,
-  "loi": []
-}
-```
-
----
-
-## 8. Contract Search Engine
-
-### Input
-
-```text
-query: string
-```
-
-Search Engine lấy ứng viên từ SQLite/Storage.
-
-### Hàm logic đề xuất
-
-```python
-def tim_nhan_vien(query: str, gioi_han: int = 20) -> dict:
-    ...
-```
-
-### Output
-
-```json
-{
-  "query": "Nguyễn Văn",
-  "tong_ket_qua": 2,
+  "query": "Nguyen Van",
+  "so_ket_qua": 2,
   "ket_qua": [
     {
-      "ma_nhan_vien": "NV001",
+      "id": 1,
       "ho_ten": "Nguyễn Văn A",
-      "don_vi": "Phòng CNTT",
-      "chuc_vu": "Chuyên viên",
-      "email": "mock001@example.com",
-      "so_dien_thoai": "SDT_MOCK_001",
-      "do_khop": 100.0,
-      "kieu_khop": "partial"
+      "do_khop": 96.5,
+      "thong_tin_mo_rong": {
+        "Đơn vị": "CNTT",
+        "Dự án": "ERP"
+      }
     }
   ]
 }
 ```
 
-### Quy tắc
+### POST /upload
 
-- query phải trim;
-- query rỗng không crash;
-- kết quả có thể rỗng;
-- exact/partial dùng trước khi fuzzy nếu phù hợp;
-- có dấu/không dấu phải được xử lý;
-- kết quả xếp theo ranking;
-- `do_khop` ưu tiên thang 0–100;
-- Search không render UI.
-
----
-
-## 9. Contract Backend
-
-Baseline API:
-
-### `GET /health`
-
-```json
-{
-  "status": "ok",
-  "database": "ok",
-  "ocr": "ok"
-}
-```
-
-### `POST /upload`
-
-Luồng:
-
-```text
-Backend
-→ Reader
-→ OCR nếu cần
-→ Extraction
-→ Mapping
-→ Normalization
-→ SQLite
-```
-
-Response đề xuất:
+Response gợi ý:
 
 ```json
 {
   "trang_thai": "success",
-  "ten_file": "employees_scan.pdf",
-  "loai_file": "pdf",
-  "ocr_da_su_dung": true,
-  "tong_so_ban_ghi": 50,
-  "so_hop_le": 48,
-  "so_loi": 2,
-  "canh_bao": []
+  "ten_file": "employees.xlsx",
+  "tong_record_doc": 50,
+  "record_hop_le": 48,
+  "record_loi": 2,
+  "truong_ho_ten_da_nhan_dien": "Tên nhân viên"
 }
 ```
 
-### `GET /employees/{ma_nhan_vien}`
+## 8. Contract 7 — UI
 
-Trả một EmployeeRecord hoặc not-found response.
+UI nhận `ket_qua` và render động:
 
-### `GET /search?q=...`
+- `ho_ten` là tiêu đề chính;
+- `do_khop` nếu có;
+- duyệt toàn bộ key/value trong `thong_tin_mo_rong` để hiển thị.
 
-Trả Search Result schema.
-
----
-
-## 10. Contract UI
-
-UI chỉ gọi Backend trong bản tích hợp.
-
-### Upload
-
-Hiển thị:
-
-- tên file;
-- loại file;
-- trạng thái;
-- OCR có được sử dụng hay không;
-- tổng record;
-- số hợp lệ;
-- số lỗi;
-- cảnh báo.
-
-### Search
-
-Hiển thị tối thiểu:
+Không viết UI kiểu cố định chỉ có:
 
 ```text
-Mã NV
-Họ tên
-Đơn vị
-Chức vụ
-Độ khớp
+Mã NV | Họ tên | Đơn vị | Chức vụ
 ```
 
-Không giả định chỉ có một kết quả.
+## 9. Error codes cơ bản
 
----
+| Code | Ý nghĩa |
+|---|---|
+| `UNSUPPORTED_FILE_TYPE` | Định dạng chưa hỗ trợ |
+| `EMPTY_FILE` | File rỗng |
+| `FILE_READ_ERROR` | Không đọc được file |
+| `OCR_ERROR` | OCR thất bại |
+| `MISSING_NAME_FIELD` | Không nhận diện được trường họ tên |
+| `EMPTY_NAME_VALUE` | Record có trường họ tên nhưng giá trị rỗng |
+| `DATABASE_ERROR` | Lỗi SQLite |
+| `SEARCH_ERROR` | Lỗi Search Engine |
 
-## 11. Quy tắc lỗi chung
+## 10. Git/Branch
 
-Error object:
-
-```json
-{
-  "trang_thai": "error",
-  "ma_loi": "OCR_FAILED",
-  "thong_bao": "Không thể OCR PDF scan",
-  "chi_tiet": null
-}
-```
-
-Các mã lỗi baseline:
+Gợi ý branch:
 
 ```text
-FILE_NOT_FOUND
-FILE_EMPTY
-FILE_UNSUPPORTED
-FILE_READ_ERROR
-PDF_NO_TEXT
-OCR_REQUIRED
-OCR_FAILED
-OCR_NO_USABLE_TEXT
-SCHEMA_MISSING_REQUIRED_FIELD
-DUPLICATE_EMPLOYEE_ID
-INVALID_QUERY
-EMPLOYEE_NOT_FOUND
-DATABASE_ERROR
-DATABASE_TRANSACTION_ERROR
-INTERNAL_ERROR
+feature/ck1-02-file-reader-ocr
+feature/ck1-03-search-engine
+feature/ck1-04-sqlite-backend
+feature/ck1-05-ui-server
 ```
 
----
+Commit nên có Jira ID hoặc CK task ID.
 
-## 12. Quy tắc Git/GitHub
-
-### Branch đề xuất
+Ví dụ:
 
 ```text
-main
-feature/CK1-02-file-reader-ocr
-feature/CK1-03-search
-feature/CK1-04-sql-backend
-feature/CK1-05-ui-server
+CK1-02: add PDF scan OCR reader
+CK1-04: store dynamic extra fields as JSON
 ```
 
-### Commit
+## 11. Quy tắc thay đổi contract
 
-Commit nên gắn task Jira, ví dụ:
+Nếu thành viên muốn thay đổi:
 
-```text
-CK1-02: thêm OCR cho PDF scan
-CK1-04: tạo schema SQLite và import mock data
-```
+- tên field bắt buộc;
+- cấu trúc normalized record;
+- response API;
+- cách lưu JSON;
 
-### Pull Request
+thì phải:
 
-PR phải có:
-
-- task liên quan;
-- thay đổi chính;
-- cách chạy;
-- test đã thực hiện;
-- vấn đề còn lại.
-
-Leader review trước khi merge vào nhánh tích hợp/main theo workflow nhóm.
-
----
-
-## 13. Thứ tự tích hợp CK2
-
-Ưu tiên:
-
-```text
-1. SQLite schema + Storage interface
-2. Reader + OCR
-3. Extraction + Mapping + Normalization
-4. Import normalized records vào SQLite
-5. Search Engine đọc từ SQLite
-6. Backend gọi Upload/Search
-7. UI gọi Backend
-8. End-to-end test
-```
-
-Không chờ đến cuối CK2 mới ghép.
-
----
-
-## 14. Quy trình thay đổi interface
-
-Nếu một thành viên muốn đổi output/input:
-
-1. ghi rõ thay đổi đề xuất;
-2. nêu module bị ảnh hưởng;
-3. báo leader;
-4. leader duyệt;
-5. cập nhật tài liệu contract;
-6. thông báo thành viên liên quan;
-7. mới merge code thay đổi.
-
-Không tự đổi contract trong branch cá nhân.
+1. báo leader;
+2. cập nhật `data_schema.md` / `integration_rules.md`;
+3. thông báo các task bị ảnh hưởng;
+4. chỉ merge khi contract mới được chấp nhận.

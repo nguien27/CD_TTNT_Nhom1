@@ -1,492 +1,242 @@
-# ARCHITECTURE – Kiến trúc hệ thống truy xuất thông tin nhân viên
+# ARCHITECTURE — KIẾN TRÚC HỆ THỐNG TRUY XUẤT THÔNG TIN NHÂN VIÊN
 
-**Phiên bản:** 0.2 – CK1  
-**Quyết định đã chốt:** Storage = SQLite/SQL; PDF scan = OCR bắt buộc.  
-**Mục đích:** Là ngữ cảnh kiến trúc chung cho CK1, CK2 và CK3.
+**Phiên bản:** 0.2  
+**Ngày cập nhật:** 09/09/2026
 
----
+## 1. Mục tiêu kiến trúc
 
-## 1. Kiến trúc logic tổng thể
+Kiến trúc phải đáp ứng hai đặc điểm chính:
 
-```mermaid
-flowchart TD
-    U[Người dùng] --> UI[UI / Giao diện Web]
-    UI --> B[Backend / API]
+1. Input nhiều định dạng và nhiều cấu trúc.
+2. Chỉ `ho_ten` là field bắt buộc; các field khác được giữ động.
 
-    B --> FP[File Processing Pipeline]
-    FP --> D{Loại file}
-
-    D -->|XLSX/CSV| TAB[Table Reader]
-    D -->|DOCX| DOC[Word Reader]
-    D -->|PDF| P[PDF Reader]
-
-    P --> PT{Có text đủ dùng?}
-    PT -->|Có| E[Information Extraction]
-    PT -->|Không / Scan| OCR[OCR]
-    OCR --> E
-
-    TAB --> E
-    DOC --> E
-
-    E --> M[Schema Mapping]
-    M --> N[Normalization & Validation]
-    N --> SQL[(SQLite / SQL)]
-
-    B --> Q[Retrieval / Search Engine]
-    Q --> SQL
-    Q --> B
-    B --> UI
-```
-
-Hệ thống có hai luồng chính:
-
-1. **Upload/Import dữ liệu**.
-2. **Search/Truy xuất dữ liệu**.
-
----
-
-## 2. Luồng Upload / Import
+## 2. Kiến trúc tổng thể
 
 ```text
-Người dùng chọn file
-        ↓
-UI
-        ↓
-Backend nhận file
-        ↓
-Xác định định dạng
-        ↓
-┌───────────────┬───────────────┬─────────────────────┐
-│ XLSX / CSV    │ DOCX          │ PDF                 │
-│ Table Reader  │ Word Reader   │ PDF Reader          │
-└───────────────┴───────────────┴─────────┬───────────┘
-                                          ↓
-                                PDF có text đủ dùng?
-                                   ↙             ↘
-                                 Có              Không/scan
-                                  ↓                 ↓
-                               Extraction          OCR
-                                                     ↓
-                                                Extraction
-                                          ↓
-                                  Schema Mapping
-                                          ↓
-                               Normalization/Validation
-                                          ↓
-                                      SQLite
-                                          ↓
-                                 Backend response
-                                          ↓
-                                         UI
+                NGƯỜI DÙNG
+                    │
+                    ▼
+                   UI
+                    │
+                    ▼
+                 BACKEND
+                    │
+          ┌─────────┴─────────┐
+          │                   │
+          ▼                   ▼
+       UPLOAD               SEARCH
+          │                   │
+          ▼                   ▼
+    FILE PROCESSOR       SEARCH ENGINE
+          │                   │
+   ┌──────┼──────┐            │
+   │      │      │            │
+ Excel   Word   CSV           │
+   │      │      │            │
+   └──────┼──────┘            │
+          │                   │
+          ▼                   │
+         PDF                  │
+      /       \               │
+ PDF text   PDF scan           │
+    │          │               │
+ extract      OCR              │
+    \          /               │
+     \        /                │
+      ▼      ▼                 │
+   EXTRACTION / STRUCTURE      │
+          │                    │
+          ▼                    │
+  DETECT `ho_ten` FIELD        │
+          │                    │
+     ┌────┴────┐               │
+     │         │               │
+   Không      Có               │
+     │         │               │
+  Cảnh báo     ▼               │
+         NORMALIZATION         │
+              │                │
+              ▼                │
+    FLEXIBLE RECORD MODEL      │
+  ho_ten + extra_fields(JSON)  │
+              │                │
+              ▼                │
+          SQLite / SQL ◄───────┘
+              │
+              ▼
+             UI
 ```
 
-Kết quả upload phải trả được tối thiểu:
-
-- tên file;
-- loại file;
-- có dùng OCR hay không;
-- tổng số record;
-- số record hợp lệ;
-- số record lỗi;
-- cảnh báo/lỗi chính.
-
----
-
-## 3. Luồng Search
-
-```text
-Người dùng nhập query
-        ↓
-UI
-        ↓
-Backend
-        ↓
-Search Engine
-        ↓
-Chuẩn hóa query
-        ↓
-SQL lấy tập ứng viên
-        ↓
-Exact / Partial / Accent-insensitive / Fuzzy
-        ↓
-Ranking
-        ↓
-Danh sách EmployeeRecord + do_khop
-        ↓
-Backend JSON
-        ↓
-UI hiển thị nhiều kết quả
-```
-
-SQL chịu trách nhiệm lưu và truy vấn dữ liệu; Search Engine có thể dùng SQL để lấy ứng viên và Python để tính fuzzy/ranking.
-
----
-
-## 4. Thành phần và trách nhiệm
-
-### 4.1. UI / Web Interface
+## 3. File Processing Layer
 
 Trách nhiệm:
 
-- chọn/upload file;
-- hiển thị trạng thái xử lý;
-- hiển thị thông tin OCR nếu cần;
-- nhập query;
-- gửi request tới backend;
-- hiển thị nhiều kết quả;
-- hiển thị lỗi/cảnh báo dễ hiểu.
-
-UI không trực tiếp:
-
-- đọc PDF;
-- chạy OCR;
-- mapping schema;
-- viết SQL business logic.
-
-### 4.2. Backend / API
-
-Trách nhiệm:
-
-- là cổng giao tiếp cho UI;
 - nhận file;
-- điều phối File Processing Pipeline;
-- gọi Storage/SQLite;
-- nhận query;
-- gọi Search Engine;
-- trả JSON có cấu trúc;
-- xử lý lỗi API.
+- phát hiện định dạng;
+- đọc Excel/CSV/Word/PDF;
+- với PDF: phân biệt text/scan;
+- OCR PDF scan;
+- không làm mất các cột/trường chưa biết;
+- trả dữ liệu thô có cấu trúc hoặc text để bước tiếp theo xử lý.
 
-Framework backend có thể được CK1-04 chốt giữa FastAPI/Flask hoặc phương án phù hợp; việc này không thay đổi kiến trúc logic.
-
-### 4.3. File Reader
-
-Reader dự kiến:
-
-```text
-Excel Reader
-CSV Reader
-DOCX Reader
-PDF Reader
-```
+## 4. Extraction / Name Detection Layer
 
 Trách nhiệm:
 
-- xác định định dạng;
-- đọc nội dung cơ bản;
-- trả text/table/metadata;
-- không tự lưu database;
-- không tự Search.
+- từ dữ liệu đọc được, xác định field tương ứng với `ho_ten`;
+- sử dụng danh sách alias ban đầu;
+- với Word/PDF unstructured, trích xuất tên theo label/pattern nếu có;
+- nếu không phát hiện được `ho_ten`, trả lỗi nghiệp vụ `MISSING_NAME_FIELD`.
 
-### 4.4. PDF Reader + OCR
+AI cho name-field detection có thể được bổ sung sau nếu cần; CK1 chưa được tự ý thay contract.
 
-Đây là một nhánh bắt buộc.
-
-PDF Reader phải:
-
-1. thử trích xuất text trực tiếp;
-2. đánh giá text có đủ dùng hay không;
-3. nếu PDF scan/không đủ text → chuyển sang OCR;
-4. trả text OCR và metadata.
-
-Luồng:
-
-```text
-PDF
- ↓
-Direct Text Extraction
- ↓
-Text đủ dùng?
-  │
-  ├── Có → Extraction
-  │
-  └── Không → Convert page to image → OCR → Extraction
-```
-
-OCR engine có thể thay thế, nhưng contract output phải giữ ổn định.
-
-### 4.5. Information Extraction
-
-Chuyển dữ liệu thô thành trường có ý nghĩa.
-
-Với dữ liệu bảng:
-
-- header;
-- row;
-- cell.
-
-Với DOCX/PDF/OCR text:
-
-- bảng;
-- pattern `Tên trường: Giá trị`;
-- dòng/khối text;
-- rule-based extraction;
-- có thể bổ sung AI nếu nhóm chốt sau.
-
-### 4.6. Schema Mapping
-
-Biến tên trường khác nhau thành field chuẩn.
-
-```text
-Employee ID
-Mã NV
-Mã cán bộ
-      ↓
-ma_nhan_vien
-```
-
-Baseline dùng alias/rule. AI-assisted mapping có thể được thêm nếu thật sự cần.
-
-### 4.7. Normalization & Validation
+## 5. Normalization Layer
 
 Trách nhiệm:
 
-- chuẩn hóa khoảng trắng;
-- chuẩn hóa null;
-- kiểm tra trường bắt buộc;
-- kiểm tra duplicate;
-- giữ Unicode tiếng Việt;
-- tạo danh sách record hợp lệ;
-- tạo danh sách record lỗi.
+- chuẩn hóa giá trị `ho_ten`;
+- tạo `ho_ten_chuan`;
+- giữ toàn bộ field còn lại thành dictionary `thong_tin_mo_rong`;
+- loại/báo record có `ho_ten` rỗng;
+- giữ tên field nguồn để UI có thể hiển thị đúng nghĩa.
 
-### 4.8. SQLite / SQL Storage
+## 6. Storage Layer — SQLite
 
-**Đã chốt:** Storage chính thức là SQLite.
-
-Trách nhiệm:
-
-- tạo database/schema;
-- lưu EmployeeRecord;
-- kiểm soát khóa chính `ma_nhan_vien`;
-- truy vấn theo mã/tên/đơn vị;
-- hỗ trợ transaction khi import;
-- cung cấp dữ liệu cho Search Engine;
-- không để UI truy cập database trực tiếp.
-
-Database file baseline:
+Mô hình lưu trữ:
 
 ```text
-data/employee.db
+nhan_vien
+├── id
+├── ho_ten
+├── ho_ten_chuan
+├── thong_tin_mo_rong (JSON text)
+├── nguon_file
+├── nguon_sheet
+└── created_at
 ```
 
-Có thể đổi tên/path nhưng không được hard-code đường dẫn máy cá nhân.
+SQLite không phụ thuộc số lượng field của file đầu vào.
 
-### 4.9. Retrieval / Search Engine
+## 7. Search Engine
 
-Trách nhiệm:
+Search chỉ phụ thuộc các trường:
 
-- nhận query;
-- chuẩn hóa query;
-- exact match;
-- partial match;
-- không phân biệt hoa/thường;
-- có dấu/không dấu;
-- fuzzy matching;
-- ranking;
-- trả kết quả theo schema chung.
+- `ho_ten`;
+- `ho_ten_chuan`.
 
-Search Engine có thể kết hợp:
+Các extra fields không cần tham gia thuật toán tìm tên trong MVP, nhưng phải được giữ để trả về khi tìm thấy record.
+
+Search flow:
 
 ```text
-SQL candidate retrieval
-        +
-Python similarity/ranking
-```
-
----
-
-## 5. Ranh giới module
-
-```text
-UI
-│ chỉ gọi Backend/API
-▼
-Backend
-│ điều phối
-├── File Processing Pipeline
-├── Search Engine
-└── SQLite Storage
-
-File Processing Pipeline
-├── Reader
-├── PDF OCR
-├── Extraction
-├── Mapping
-└── Normalization
-
-Search Engine
-└── truy xuất dữ liệu qua Storage/SQL
-```
-
-Nguyên tắc: mỗi module chỉ chịu trách nhiệm phần của mình.
-
----
-
-## 6. Kiến trúc theo chu kỳ
-
-### CK1 – Prototype có chuẩn chung
-
-```text
-                    CK1-01
-         Requirements + Schema + Architecture
-                       │
-        ┌──────────────┼───────────────┐
-        ↓              ↓               ↓
-     CK1-02         CK1-03          CK1-04
- Reader + OCR        Search        SQLite/API
-        │              │               │
-        └──────────────┼───────────────┘
-                       ↓
-                    CK1-05
-                    UI mẫu
-```
-
-CK1-02 đến CK1-05 có thể làm song song, nhưng phải theo contract của CK1-01.
-
-### CK2 – Tích hợp end-to-end
-
-```text
-File
+query
  ↓
-Reader / OCR
+normalize
  ↓
-Extraction
+exact / partial / no-accent / fuzzy
  ↓
-Mapping
+ranking
  ↓
-Normalization
+record IDs
  ↓
 SQLite
  ↓
-Search Engine
- ↓
+ho_ten + toàn bộ extra fields
+```
+
+## 8. Backend
+
+Backend là lớp điều phối:
+
+### Upload
+
+```text
+UI → Backend → File Processor → Extraction → Normalization → SQLite
+```
+
+### Search
+
+```text
+UI → Backend → Search Engine → SQLite → Backend → UI
+```
+
+Backend không được giả định record chỉ có 6 field.
+
+## 9. UI động
+
+UI cần có:
+
+- upload file;
+- trạng thái xử lý;
+- search box;
+- danh sách kết quả;
+- detail view hiển thị `ho_ten` + tất cả field mở rộng.
+
+Ví dụ record A có 3 field và record B có 15 field thì UI vẫn phải hiển thị phù hợp từng record.
+
+## 10. Server-client
+
+```text
+Máy leader
+├── UI
+├── Backend
+├── SQLite
+├── OCR runtime
+└── File processing
+      │
+      ▼
+0.0.0.0:PORT
+      │
+      ├── Máy thành viên
+      ├── Máy giảng viên
+      └── Điện thoại cùng mạng
+```
+
+## 11. Kiến trúc theo chu kỳ
+
+### CK1 — Xây module riêng
+
+- CK1-01: requirement/schema/architecture/rules/mock data.
+- CK1-02: File Processor + OCR.
+- CK1-03: Search Engine.
+- CK1-04: SQLite + Backend prototype.
+- CK1-05: UI + server prototype.
+
+Các task 02–05 có thể làm song song sau khi CK1-01 phát hành baseline v0.2.
+
+### CK2 — Tích hợp end-to-end
+
+```text
+File + OCR
+  ↓
+Detect ho_ten
+  ↓
+Normalize + preserve extras
+  ↓
+SQLite
+  ↓
+Search
+  ↓
 Backend
- ↓
-UI
+  ↓
+Dynamic UI
 ```
 
-Mục tiêu CK2: luồng chạy được từ upload đến search result.
+### CK3 — Hoàn thiện
 
-### CK3 – Hoàn thiện và triển khai
+- system test;
+- sửa lỗi;
+- đóng gói;
+- server test;
+- User Guide;
+- báo cáo kỹ thuật;
+- GitHub;
+- rehearsal demo.
 
-```text
-Hệ thống CK2
-   ├── Test file/OCR/SQL/Search/API/UI
-   ├── Sửa lỗi
-   ├── Packaging
-   ├── Server deployment
-   ├── Technical report
-   ├── User Guide
-   └── Rehearsal
-```
+## 12. Nguyên tắc kiến trúc bắt buộc
 
----
-
-## 7. Cấu trúc source code đề xuất
-
-```text
-employee-information-retrieval/
-│
-├── data/
-│   ├── mock_data.xlsx
-│   ├── employee.db
-│   └── samples/
-│
-├── docs/
-│   ├── requirements.md
-│   ├── data_schema.md
-│   ├── architecture.md
-│   └── integration_rules.md
-│
-├── src/
-│   ├── readers/
-│   │   ├── excel_reader.py
-│   │   ├── csv_reader.py
-│   │   ├── word_reader.py
-│   │   └── pdf_reader.py
-│   │
-│   ├── ocr/
-│   │   └── pdf_ocr.py
-│   │
-│   ├── extraction/
-│   ├── normalization/
-│   ├── storage/
-│   │   ├── database.py
-│   │   └── schema.sql
-│   │
-│   ├── search/
-│   ├── backend/
-│   └── ui/
-│
-├── tests/
-│   ├── sample_files/
-│   ├── test_readers.py
-│   ├── test_ocr.py
-│   ├── test_storage.py
-│   ├── test_search.py
-│   └── test_api.py
-│
-├── requirements.txt
-├── README.md
-└── .gitignore
-```
-
----
-
-## 8. Mô hình triển khai
-
-```text
-                    MÁY LEADER
-            ┌─────────────────────┐
-            │ UI                  │
-            │ Backend             │
-            │ OCR                 │
-            │ SQLite employee.db  │
-            └──────────┬──────────┘
-                       │
-                 LAN / Network
-            ┌──────────┼──────────┐
-            ↓          ↓          ↓
-          Client 1   Client 2   Client 3
-          Browser    Browser    Browser
-```
-
-Máy client không cần cài Python/OCR/SQLite nếu chỉ truy cập giao diện web.
-
----
-
-## 9. Điểm cần test riêng vì đã chốt OCR + SQL
-
-### OCR
-
-- PDF text;
-- PDF scan rõ;
-- PDF scan tiếng Việt;
-- PDF nhiều trang;
-- OCR không nhận được text;
-- OCR ra text sai một phần;
-- bảng trong PDF scan.
-
-### SQL
-
-- tạo database mới;
-- import nhiều record;
-- duplicate mã nhân viên;
-- query theo mã;
-- query theo tên;
-- transaction lỗi;
-- restart server nhưng dữ liệu vẫn tồn tại.
-
----
-
-## 10. Thành phần AI
-
-Thành phần AI chính vẫn chưa khóa.
-
-OCR là một chức năng nhận dạng cần thiết cho đầu vào scan, nhưng nhóm không nên mặc định coi OCR là toàn bộ đóng góp AI của đề tài. CK1/CK2 có thể khảo sát thêm AI cho:
-
-- schema mapping;
-- information extraction;
-- semantic search;
-- natural-language query.
-
-Quyết định cuối phải dựa trên khả năng triển khai và test được.
+1. Không module nào được drop field lạ chỉ vì không có trong schema cũ.
+2. Search không phụ thuộc `ma_nhan_vien`.
+3. `id` SQLite là internal ID, không phải mã nhân viên doanh nghiệp.
+4. Không hard-code danh sách 6 cột trong Backend/UI.
+5. Thay đổi contract phải cập nhật tài liệu trước khi merge.
