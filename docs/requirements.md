@@ -1,14 +1,14 @@
 # REQUIREMENTS – Hệ thống truy xuất thông tin nhân viên doanh nghiệp
 
-**Phiên bản:** 0.1 – CK1  
-**Mục đích:** Làm tài liệu yêu cầu chung để các task CK1, CK2 và CK3 dùng cùng một ngữ cảnh.  
-**Trạng thái:** Bản nền tảng; một số quyết định kỹ thuật như database và thành phần AI chưa khóa và sẽ được cập nhật sau review CK1.
+**Phiên bản:** 0.2 – CK1  
+**Cập nhật quyết định:** dùng cơ sở dữ liệu quan hệ SQL với **SQLite** làm database chính thức của bản demo; **OCR là bắt buộc đối với PDF scan/ảnh**.  
+**Mục đích:** Làm tài liệu yêu cầu chung để các task CK1, CK2 và CK3 dùng cùng một ngữ cảnh.
 
 ---
 
 ## 1. Bối cảnh bài toán
 
-Nhóm xây dựng một hệ thống có khả năng tiếp nhận dữ liệu nhân sự của doanh nghiệp từ nhiều loại tệp, trích xuất và chuẩn hóa thông tin nhân viên, sau đó cho phép người dùng tìm kiếm nhân viên và truy xuất các thông tin liên quan như mã nhân viên, họ tên, đơn vị, chức vụ và các trường mở rộng khác.
+Nhóm xây dựng một hệ thống có khả năng tiếp nhận dữ liệu nhân sự của doanh nghiệp từ nhiều loại tệp, trích xuất và chuẩn hóa thông tin nhân viên, lưu dữ liệu vào cơ sở dữ liệu SQL, sau đó cho phép người dùng tìm kiếm nhân viên và truy xuất các thông tin liên quan như mã nhân viên, họ tên, đơn vị, chức vụ và các trường mở rộng khác.
 
 Ví dụ người dùng nhập:
 
@@ -24,7 +24,7 @@ Nguyễn Văn B
 Nguyễn Văn An
 ```
 
-Kết quả tìm kiếm cần hiển thị các thông tin của từng nhân viên, tối thiểu gồm mã nhân viên, họ tên, đơn vị và chức vụ.
+Kết quả tìm kiếm cần hiển thị thông tin của từng nhân viên, tối thiểu gồm mã nhân viên, họ tên, đơn vị và chức vụ.
 
 ---
 
@@ -35,13 +35,15 @@ Xây dựng một sản phẩm có luồng xử lý hoàn chỉnh:
 ```text
 File đầu vào
     ↓
-Đọc file
+Nhận diện loại file
+    ↓
+Đọc file / OCR nếu cần
     ↓
 Trích xuất dữ liệu
     ↓
 Ánh xạ và chuẩn hóa trường dữ liệu
     ↓
-Lưu trữ dữ liệu
+Lưu vào SQLite bằng SQL
     ↓
 Tìm kiếm / truy xuất
     ↓
@@ -52,26 +54,27 @@ UI
 Người dùng
 ```
 
-Sản phẩm cuối phải có thể được chạy trên một máy đóng vai trò **server (máy chủ)** và máy khác có thể truy cập, xem và sử dụng hệ thống trong điều kiện triển khai phù hợp.
+Sản phẩm cuối phải có thể chạy trên một máy đóng vai trò **server (máy chủ)** và máy khác có thể truy cập, xem và sử dụng hệ thống trong cùng môi trường mạng phù hợp.
 
 ---
 
 ## 3. Phạm vi dữ liệu đầu vào
 
-### 3.1. Định dạng ưu tiên
+### 3.1. Định dạng bắt buộc ưu tiên
 
-Phiên bản đầu tiên ưu tiên hỗ trợ:
+Phiên bản đầu tiên phải hướng tới hỗ trợ:
 
 - `.xlsx` – Excel.
-- `.csv` – tệp dữ liệu phân cách.
+- `.csv` – CSV.
 - `.docx` – Word.
-- `.pdf` – PDF có lớp text có thể trích xuất.
+- `.pdf` – PDF có lớp text.
+- `.pdf` – PDF scan hoặc PDF chứa ảnh, sử dụng OCR.
 
 Các định dạng khác có thể mở rộng sau khi MVP ổn định.
 
 ### 3.2. Cấu trúc file
 
-Không giả định các file có cùng cấu trúc. Hệ thống cần hướng tới xử lý các biến thể như:
+Không giả định các file có cùng cấu trúc. Hệ thống phải hướng tới xử lý các biến thể như:
 
 ```text
 File A:
@@ -84,11 +87,47 @@ File C:
 Employee ID | Full Name | Department | Position
 ```
 
-Các tên cột khác nhau phải được ánh xạ về **Data Schema (cấu trúc dữ liệu chuẩn)** của hệ thống.
+Các tên cột/nhãn khác nhau phải được ánh xạ về **Data Schema (cấu trúc dữ liệu chuẩn)** của hệ thống.
 
-### 3.3. PDF scan
+### 3.3. Yêu cầu bắt buộc đối với PDF scan
 
-PDF dạng scan/ảnh có thể cần **OCR (nhận dạng ký tự quang học)**. Đây chưa phải yêu cầu bắt buộc của CK1. Trong CK1 chỉ cần xác định được giới hạn và ghi nhận nhu cầu mở rộng OCR nếu cần.
+PDF phải được chia thành hai trường hợp:
+
+#### PDF có text
+
+```text
+PDF
+ ↓
+Trích xuất text trực tiếp
+ ↓
+Information Extraction
+```
+
+#### PDF scan / PDF ảnh
+
+```text
+PDF scan
+   ↓
+Chuyển trang PDF thành ảnh nếu cần
+   ↓
+OCR – Optical Character Recognition
+   ↓
+Text nhận dạng
+   ↓
+Information Extraction
+```
+
+OCR là **chức năng bắt buộc của dự án**, không còn là phần mở rộng tùy chọn.
+
+Yêu cầu tối thiểu:
+
+- nhận biết trường hợp PDF không có text đủ dùng;
+- thực hiện OCR trên PDF scan;
+- hỗ trợ tiếng Việt ở mức có thể triển khai trong thời gian môn học;
+- trả được text cho bước trích xuất dữ liệu;
+- nếu OCR thất bại phải có lỗi/cảnh báo rõ ràng, không làm ứng dụng crash.
+
+Engine OCR có thể được khảo sát trong CK1-02. Baseline ưu tiên giải pháp miễn phí/offline, ví dụ Tesseract OCR hoặc phương án tương đương. Việc thay OCR engine không được làm thay đổi contract giữa các module.
 
 ---
 
@@ -112,7 +151,7 @@ Trong MVP, các trường quan trọng nhất để truy xuất là:
 
 `email` và `so_dien_thoai` là trường mở rộng, có thể bị thiếu ở một số bản ghi.
 
-Chi tiết kiểu dữ liệu, bắt buộc/không bắt buộc, quy tắc chuẩn hóa và ánh xạ được định nghĩa trong `data_schema.md`.
+Chi tiết kiểu dữ liệu, ràng buộc và quy tắc chuẩn hóa được định nghĩa trong `data_schema.md`.
 
 ---
 
@@ -130,7 +169,8 @@ Có thể:
 - nạp dữ liệu;
 - kiểm tra log hoặc thông báo lỗi;
 - kiểm thử hệ thống;
-- quản lý phiên bản mã nguồn trên GitHub.
+- quản lý phiên bản mã nguồn trên GitHub;
+- kiểm tra trạng thái database SQLite.
 
 ---
 
@@ -140,11 +180,9 @@ Có thể:
 
 Hệ thống cho phép người dùng chọn và tải file dữ liệu nhân viên lên.
 
-**Tối thiểu:** `.xlsx`, `.csv`, `.docx`, `.pdf`.
+**Định dạng tối thiểu:** `.xlsx`, `.csv`, `.docx`, `.pdf`.
 
-Hệ thống phải xác định được loại file và chuyển tới bộ đọc tương ứng.
-
----
+Hệ thống phải xác định loại file và chuyển tới bộ xử lý phù hợp.
 
 ### FR-02 – Đọc nội dung file
 
@@ -152,25 +190,46 @@ Hệ thống có bộ đọc phù hợp cho từng loại file.
 
 Kết quả đọc phải được chuyển thành dạng dữ liệu trung gian có cấu trúc để bước tiếp theo có thể xử lý.
 
----
+### FR-03 – OCR PDF scan
 
-### FR-03 – Kiểm tra file và xử lý lỗi
+Khi PDF không có lớp text hữu ích hoặc được nhận diện là PDF scan, hệ thống phải chạy OCR.
+
+Luồng tối thiểu:
+
+```text
+PDF
+ ↓
+Thử đọc text trực tiếp
+ ↓
+Text đủ dùng? ── Có ──> tiếp tục Extraction
+      │
+      Không
+      ↓
+OCR
+ ↓
+Text OCR
+ ↓
+Extraction
+```
+
+Kết quả OCR phải kèm metadata cho biết OCR đã được sử dụng hay chưa.
+
+### FR-04 – Kiểm tra file và xử lý lỗi
 
 Hệ thống phải phản hồi hợp lý khi:
 
 - file rỗng;
 - file hỏng;
-- phần mở rộng chưa hỗ trợ;
+- định dạng chưa hỗ trợ;
 - file không chứa dữ liệu có thể sử dụng;
-- không trích xuất được text từ PDF.
+- OCR không lấy được text;
+- nội dung sau OCR quá kém để trích xuất trường bắt buộc.
 
 Một file lỗi không được làm toàn bộ ứng dụng dừng đột ngột.
 
----
+### FR-05 – Nhận diện và ánh xạ trường dữ liệu
 
-### FR-04 – Nhận diện và ánh xạ trường dữ liệu
-
-Các tên cột/nhãn khác nhau phải hướng tới được ánh xạ về trường chuẩn.
+Các tên cột/nhãn khác nhau phải được ánh xạ về trường chuẩn.
 
 Ví dụ:
 
@@ -185,9 +244,7 @@ ma_nhan_vien
 
 Quy tắc ánh xạ ban đầu được mô tả trong `data_schema.md`.
 
----
-
-### FR-05 – Chuẩn hóa dữ liệu
+### FR-06 – Chuẩn hóa dữ liệu
 
 Dữ liệu sau trích xuất phải được chuẩn hóa trước khi lưu, bao gồm tối thiểu:
 
@@ -196,27 +253,42 @@ Dữ liệu sau trích xuất phải được chuẩn hóa trước khi lưu, ba
 - chuẩn hóa giá trị rỗng;
 - kiểm tra trường bắt buộc;
 - giữ Unicode tiếng Việt đúng;
-- phát hiện mã nhân viên trùng khi cần.
+- phát hiện mã nhân viên trùng;
+- giữ mã nhân viên ở kiểu chuỗi.
 
----
+### FR-07 – Lưu trữ bằng SQL
 
-### FR-06 – Lưu trữ dữ liệu
+**Quyết định chính thức:** hệ thống sử dụng cơ sở dữ liệu quan hệ và SQL để lưu/truy vấn dữ liệu.
 
-Hệ thống cần có một lớp **Storage (lưu trữ)** để lưu dữ liệu nhân viên sau chuẩn hóa.
+**Database chính thức của bản demo:** SQLite.
 
-Công nghệ lưu trữ chưa khóa tại thời điểm lập tài liệu. CK1-04 phải khảo sát và đề xuất dựa trên:
+Lý do lựa chọn SQLite cho dự án hiện tại:
 
-- độ đơn giản;
-- khả năng truy vấn;
-- khả năng chạy server;
-- độ ổn định;
-- thời gian thực hiện dự án.
+- sử dụng SQL thật;
+- không cần dựng database server riêng;
+- dễ đóng gói cùng ứng dụng;
+- phù hợp nhóm 5 người và thời gian ngắn;
+- đủ khả năng lưu, thêm, cập nhật và truy vấn dữ liệu nhân viên;
+- phù hợp mô hình máy leader chạy ứng dụng/server.
 
-Không được để UI phụ thuộc trực tiếp vào một file Excel duy nhất trong phiên bản tích hợp cuối.
+Database tối thiểu có bảng `nhan_vien` theo schema trong `data_schema.md`.
 
----
+Không được để UI đọc trực tiếp file Excel làm nguồn dữ liệu chính trong phiên bản tích hợp cuối.
 
-### FR-07 – Tìm kiếm chính xác
+### FR-08 – Import dữ liệu vào SQL
+
+Sau khi file được đọc, OCR nếu cần, trích xuất và chuẩn hóa, các record hợp lệ phải được lưu vào SQLite.
+
+Hệ thống phải có xử lý cơ bản đối với:
+
+- mã nhân viên trùng;
+- record thiếu trường bắt buộc;
+- lỗi transaction/database;
+- upload nhiều lần.
+
+Policy cụ thể cho `INSERT/UPDATE/UPSERT` được khóa trong `integration_rules.md` và có thể điều chỉnh sau review CK1.
+
+### FR-09 – Tìm kiếm chính xác
 
 Người dùng có thể tìm bằng họ tên đầy đủ hoặc mã nhân viên.
 
@@ -227,9 +299,7 @@ NV001
 Nguyễn Văn A
 ```
 
----
-
-### FR-08 – Tìm kiếm một phần tên
+### FR-10 – Tìm kiếm một phần tên
 
 Người dùng không cần nhập toàn bộ tên.
 
@@ -239,13 +309,11 @@ Ví dụ:
 Query: Nguyễn Văn
 ```
 
-phải có khả năng trả nhiều nhân viên phù hợp.
+Hệ thống trả về nhiều kết quả phù hợp.
 
----
+### FR-11 – Tìm kiếm không phân biệt hoa/thường
 
-### FR-09 – Không phân biệt hoa/thường
-
-Các truy vấn sau phải được xử lý tương đương ở mức tìm kiếm tên:
+Các query sau phải được xử lý tương đương về mặt logic:
 
 ```text
 Nguyễn Văn
@@ -253,93 +321,61 @@ nguyễn văn
 NGUYỄN VĂN
 ```
 
----
+### FR-12 – Tìm kiếm có dấu/không dấu
 
-### FR-10 – Hỗ trợ tìm kiếm không dấu
-
-Hệ thống nên hỗ trợ:
+Hệ thống hướng tới hỗ trợ:
 
 ```text
 Nguyen Van
+→ Nguyễn Văn ...
 ```
 
-để tìm các tên:
+### FR-13 – Fuzzy Search
 
-```text
-Nguyễn Văn ...
-```
-
-Đây là yêu cầu ưu tiên cao cho Search Engine.
-
----
-
-### FR-11 – Fuzzy Search
-
-**Fuzzy Search (tìm kiếm gần đúng)** cần được thử nghiệm để xử lý lỗi gõ nhỏ.
+Hệ thống phải thử nghiệm tìm kiếm gần đúng để xử lý lỗi gõ nhỏ.
 
 Ví dụ:
 
 ```text
 Nguyne Van A
+→ Nguyễn Văn A
 ```
 
-có thể gợi ý:
+Kết quả nên có cơ chế ranking hoặc điểm khớp để sắp xếp ứng viên.
 
-```text
-Nguyễn Văn A
-```
+### FR-14 – Hiển thị kết quả
 
-Phương pháp và ngưỡng độ khớp chưa khóa trong CK1; CK1-03 phải thử nghiệm và báo cáo.
-
----
-
-### FR-12 – Xếp hạng kết quả
-
-Khi có nhiều kết quả, hệ thống cần sắp xếp kết quả phù hợp hơn lên trước.
-
-Có thể sử dụng **similarity score (điểm tương đồng)** nếu phương pháp tìm kiếm hỗ trợ.
-
----
-
-### FR-13 – Hiển thị thông tin nhân viên
-
-Mỗi kết quả phải hiển thị tối thiểu:
+UI phải hiển thị tối thiểu:
 
 - mã nhân viên;
 - họ tên;
 - đơn vị;
-- chức vụ.
+- chức vụ;
+- email nếu có;
+- số điện thoại nếu có;
+- độ khớp nếu Search Engine cung cấp.
 
-Có thể hiển thị email và số điện thoại nếu dữ liệu có.
+UI phải hỗ trợ nhiều kết quả, không giả định chỉ có một nhân viên.
 
----
+### FR-15 – Server
 
-### FR-14 – Giao diện người dùng
+Máy leader chạy ứng dụng/server.
 
-UI tối thiểu cần có:
+Máy khác trong môi trường mạng phù hợp phải có thể truy cập ứng dụng qua trình duyệt.
 
-1. khu vực upload file;
-2. trạng thái xử lý file;
-3. ô nhập truy vấn tìm kiếm;
-4. nút tìm;
-5. khu vực hiển thị nhiều kết quả;
-6. thông báo khi không tìm thấy hoặc input không hợp lệ.
+### FR-16 – Health check
 
----
+Backend nên có endpoint hoặc cơ chế kiểm tra trạng thái hệ thống để phục vụ test/deploy.
 
-### FR-15 – Chạy theo mô hình server-client
-
-Máy leader đóng vai trò server:
+Ví dụ:
 
 ```text
-Máy leader
-    ↓
-Server
-    ↓
-Máy khác / trình duyệt
+GET /health
 ```
 
-CK3 phải kiểm thử việc máy khác truy cập hệ thống trong môi trường demo.
+### FR-17 – Logging lỗi xử lý
+
+Các lỗi quan trọng của File Reader, OCR, Normalization, SQL và Backend phải có thông báo đủ để debug và lập báo cáo test.
 
 ---
 
@@ -347,137 +383,120 @@ CK3 phải kiểm thử việc máy khác truy cập hệ thống trong môi tr�
 
 ### NFR-01 – Dễ sử dụng
 
-Người không chuyên phải có thể sử dụng hệ thống thông qua User Guide.
+Người dùng không chuyên phải có thể sử dụng thông qua UI và User Guide.
 
-### NFR-02 – Không phụ thuộc đường dẫn máy cá nhân
+### NFR-02 – Ổn định
 
-Source code cuối không được chứa các đường dẫn tuyệt đối kiểu:
+File hoặc query lỗi không được làm toàn hệ thống crash.
+
+### NFR-03 – Khả năng tái lập
+
+Một thành viên khác phải có thể clone repository, cài dependency và chạy hệ thống theo README.
+
+### NFR-04 – Tách module
+
+File Reader, OCR, Extraction, Normalization, Storage, Search, Backend và UI phải được tách trách nhiệm đủ rõ để có thể test và tích hợp.
+
+### NFR-05 – Không hard-code máy cá nhân
+
+Không dùng đường dẫn tuyệt đối như `C:\Users\...` trong business logic.
+
+### NFR-06 – Database có thể khởi tạo lại
+
+Repository phải có script hoặc cơ chế tạo SQLite database/schema từ đầu.
+
+---
+
+## 8. Quyết định kỹ thuật đã chốt
+
+### 8.1. Database
 
 ```text
-C:\Users\TenThanhVien\Desktop\...
+Đã chốt: SQLite + SQL
 ```
 
-### NFR-03 – Khả năng chạy lại
+SQLite là database chính thức của bản demo hiện tại.
 
-Leader phải có thể clone/pull source, cài dependency và chạy theo README.
-
-### NFR-04 – Khả năng truy vết công việc
-
-Task, commit, branch và kết quả phải có khả năng truy vết thông qua Jira và GitHub.
-
-### NFR-05 – Xử lý lỗi cơ bản
-
-Ứng dụng cần trả thông báo lỗi có ý nghĩa thay vì crash trong các tình huống đầu vào phổ biến.
-
-### NFR-06 – Dữ liệu tiếng Việt
-
-Phải giữ đúng Unicode và dấu tiếng Việt trong dữ liệu nhân viên.
-
-### NFR-07 – Tính nhất quán
-
-Mọi module phải sử dụng Data Schema và Integration Rules chung.
-
----
-
-## 8. MVP – Sản phẩm tối thiểu phải demo được
-
-MVP được coi là đạt khi luồng sau chạy được:
+### 8.2. OCR
 
 ```text
-1. Người dùng mở UI
-2. Upload một file được hỗ trợ
-3. Hệ thống đọc file
-4. Dữ liệu được chuẩn hóa
-5. Dữ liệu được lưu
-6. Người dùng nhập một phần tên
-7. Hệ thống trả nhiều kết quả phù hợp
-8. Hiển thị mã NV, họ tên, đơn vị, chức vụ
-9. Một máy khác có thể truy cập server trong buổi kiểm thử/demo
+Đã chốt: PDF scan phải được OCR
 ```
 
----
+OCR là một phần của File Processing Pipeline.
 
-## 9. Phạm vi chưa bắt buộc trong MVP
+### 8.3. AI
 
-Các chức năng sau chỉ thực hiện khi phần lõi đã ổn định:
+```text
+Chưa chốt thành phần AI chính của đề tài
+```
 
-- OCR hoàn chỉnh cho mọi PDF scan.
-- Chatbot hội thoại nhiều lượt.
-- LLM.
-- RAG.
-- Semantic Search nâng cao.
-- Phân quyền người dùng phức tạp.
-- Đồng bộ hệ thống HR thật.
-- Cloud deployment bắt buộc.
+Các vị trí có thể khảo sát:
 
----
+- semantic/AI-assisted schema mapping;
+- semantic search;
+- hiểu câu hỏi tự nhiên;
+- mô hình hỗ trợ trích xuất thông tin.
 
-## 10. Vị trí AI – Chưa khóa
-
-Đề tài thuộc môn Chuyên đề Trí tuệ nhân tạo nhưng tại thời điểm CK1 chưa chốt thành phần AI chính.
-
-Các hướng có thể khảo sát:
-
-1. **Fuzzy Matching (so khớp gần đúng)** cho tên nhân viên.
-2. **Semantic Similarity (tương đồng ngữ nghĩa)**.
-3. **Column Mapping (ánh xạ cột)** bằng mô hình/embedding khi tên trường rất khác nhau.
-4. **Natural Language Query (truy vấn ngôn ngữ tự nhiên)**, ví dụ “Nguyễn Văn A làm ở đơn vị nào?”.
-5. OCR hoặc mô hình trích xuất thông tin nếu dữ liệu đầu vào yêu cầu.
-
-Nguyên tắc: không đưa AI vào chỉ để có tên AI; thành phần được chọn phải giải quyết một vấn đề thực tế và không làm hỏng MVP.
+Không được đưa một mô hình AI vào chỉ để “có AI”; thành phần được chọn phải có vai trò rõ ràng và đo/test được.
 
 ---
 
-## 11. Sản phẩm cuối của nhóm
+## 9. MVP – Sản phẩm tối thiểu phải demo được
 
-Theo yêu cầu dự án, nhóm cần chuẩn bị tối thiểu:
+MVP phải chạy được luồng:
 
-- hệ thống chạy được;
-- bảng theo dõi task;
-- báo cáo công việc của từng thành viên;
+```text
+Upload XLSX/CSV/DOCX/PDF
+        ↓
+Đọc file
+        ↓
+Nếu PDF scan → OCR
+        ↓
+Trích xuất thông tin
+        ↓
+Chuẩn hóa theo Data Schema
+        ↓
+Lưu SQLite bằng SQL
+        ↓
+Nhập tên/mã nhân viên
+        ↓
+Search
+        ↓
+Hiển thị thông tin nhân viên trên UI
+```
+
+MVP phải được truy cập từ máy khác khi máy leader chạy server trong môi trường demo.
+
+---
+
+## 10. Phân kỳ
+
+### CK1 – Phân tích và Prototype
+
+- khóa requirements/schema/architecture;
+- thử File Reader và OCR;
+- thử Search;
+- dựng SQLite/SQL + Backend prototype;
+- dựng UI prototype;
+- dùng mock data chung.
+
+### CK2 – Xây dựng và tích hợp
+
+- Reader + OCR + Extraction + Mapping + Normalization;
+- lưu SQLite;
+- Search Engine;
+- Backend API;
+- UI;
+- chạy end-to-end.
+
+### CK3 – Hoàn thiện và triển khai
+
+- system test;
+- sửa lỗi;
+- server/deploy;
+- đóng gói;
 - báo cáo kỹ thuật;
-- sản phẩm được đóng gói để máy khác có thể truy cập/chạy;
 - User Guide;
-- source code trên GitHub;
-- dữ liệu demo và kịch bản demo.
-
----
-
-## 12. Mốc thời gian
-
-| Chu kỳ | Thời gian | Mục tiêu |
-|---|---|---|
-| CK1 | 08/09–15/09 | Phân tích, thiết kế, prototype các module |
-| CK2 | 15/09–18/09 | Hoàn thiện module và tích hợp end-to-end |
-| CK3 | 18/09–22/09 | Test, sửa lỗi, deploy, tài liệu, rehearsal |
-| Báo cáo | 22/09 | Demo và báo cáo giảng viên |
-
-Deadline nội bộ nên sớm hơn ngày review chính thức để leader có thời gian kiểm tra.
-
----
-
-## 13. Các quyết định đang mở
-
-Các mục sau chưa được xem là quyết định cuối cùng:
-
-- loại database;
-- framework backend;
-- framework UI;
-- thành phần AI chính;
-- phương pháp fuzzy/ranking cuối cùng;
-- có sử dụng Docker hay không;
-- mức hỗ trợ PDF scan/OCR.
-
-Sau review CK1, các quyết định được khóa phải cập nhật vào tài liệu này và `architecture.md` / `integration_rules.md`.
-
----
-
-## 14. Quy tắc thay đổi yêu cầu
-
-Nếu có yêu cầu mới từ giảng viên:
-
-1. ghi lại yêu cầu mới;
-2. đánh giá ảnh hưởng đến Data Schema và kiến trúc;
-3. cập nhật tài liệu liên quan;
-4. thông báo cho các task bị ảnh hưởng;
-5. không để từng thành viên tự thay đổi schema/interface riêng.
+- GitHub;
+- rehearsal demo.

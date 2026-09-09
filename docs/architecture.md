@@ -1,7 +1,8 @@
 # ARCHITECTURE – Kiến trúc hệ thống truy xuất thông tin nhân viên
 
-**Phiên bản:** 0.1 – CK1  
-**Mục đích:** Là ngữ cảnh kiến trúc chung cho các task, chưa khóa cứng framework/database khi CK1 chưa review.
+**Phiên bản:** 0.2 – CK1  
+**Quyết định đã chốt:** Storage = SQLite/SQL; PDF scan = OCR bắt buộc.  
+**Mục đích:** Là ngữ cảnh kiến trúc chung cho CK1, CK2 và CK3.
 
 ---
 
@@ -11,115 +12,153 @@
 flowchart TD
     U[Người dùng] --> UI[UI / Giao diện Web]
     UI --> B[Backend / API]
-    B --> F[File Processing Pipeline]
-    F --> R[File Reader]
-    R --> E[Information Extraction]
+
+    B --> FP[File Processing Pipeline]
+    FP --> D{Loại file}
+
+    D -->|XLSX/CSV| TAB[Table Reader]
+    D -->|DOCX| DOC[Word Reader]
+    D -->|PDF| P[PDF Reader]
+
+    P --> PT{Có text đủ dùng?}
+    PT -->|Có| E[Information Extraction]
+    PT -->|Không / Scan| OCR[OCR]
+    OCR --> E
+
+    TAB --> E
+    DOC --> E
+
     E --> M[Schema Mapping]
     M --> N[Normalization & Validation]
-    N --> S[(Storage)]
+    N --> SQL[(SQLite / SQL)]
+
     B --> Q[Retrieval / Search Engine]
-    Q --> S
+    Q --> SQL
     Q --> B
     B --> UI
 ```
 
-Luồng upload và luồng tìm kiếm là hai luồng chính của hệ thống.
+Hệ thống có hai luồng chính:
+
+1. **Upload/Import dữ liệu**.
+2. **Search/Truy xuất dữ liệu**.
 
 ---
 
-## 2. Luồng Upload
+## 2. Luồng Upload / Import
 
-```mermaid
-sequenceDiagram
-    participant User as Người dùng
-    participant UI as UI
-    participant Backend as Backend
-    participant Reader as File Reader
-    participant Extract as Extraction/Mapping
-    participant Store as Storage
-
-    User->>UI: Chọn file và Upload
-    UI->>Backend: Gửi file
-    Backend->>Reader: Đọc file theo định dạng
-    Reader->>Extract: Dữ liệu trung gian
-    Extract->>Extract: Mapping + Normalize + Validate
-    Extract->>Store: Lưu bản ghi hợp lệ
-    Store-->>Backend: Kết quả import
-    Backend-->>UI: Số bản ghi, lỗi, cảnh báo
-    UI-->>User: Hiển thị trạng thái
+```text
+Người dùng chọn file
+        ↓
+UI
+        ↓
+Backend nhận file
+        ↓
+Xác định định dạng
+        ↓
+┌───────────────┬───────────────┬─────────────────────┐
+│ XLSX / CSV    │ DOCX          │ PDF                 │
+│ Table Reader  │ Word Reader   │ PDF Reader          │
+└───────────────┴───────────────┴─────────┬───────────┘
+                                          ↓
+                                PDF có text đủ dùng?
+                                   ↙             ↘
+                                 Có              Không/scan
+                                  ↓                 ↓
+                               Extraction          OCR
+                                                     ↓
+                                                Extraction
+                                          ↓
+                                  Schema Mapping
+                                          ↓
+                               Normalization/Validation
+                                          ↓
+                                      SQLite
+                                          ↓
+                                 Backend response
+                                          ↓
+                                         UI
 ```
+
+Kết quả upload phải trả được tối thiểu:
+
+- tên file;
+- loại file;
+- có dùng OCR hay không;
+- tổng số record;
+- số record hợp lệ;
+- số record lỗi;
+- cảnh báo/lỗi chính.
 
 ---
 
 ## 3. Luồng Search
 
-```mermaid
-sequenceDiagram
-    participant User as Người dùng
-    participant UI as UI
-    participant Backend as Backend
-    participant Search as Search Engine
-    participant Store as Storage
-
-    User->>UI: Nhập query
-    UI->>Backend: Gửi query
-    Backend->>Search: tim_nhan_vien(query)
-    Search->>Store: Lấy dữ liệu phù hợp
-    Store-->>Search: Danh sách ứng viên
-    Search->>Search: Chuẩn hóa + so khớp + ranking
-    Search-->>Backend: Danh sách kết quả
-    Backend-->>UI: JSON kết quả
-    UI-->>User: Bảng thông tin nhân viên
+```text
+Người dùng nhập query
+        ↓
+UI
+        ↓
+Backend
+        ↓
+Search Engine
+        ↓
+Chuẩn hóa query
+        ↓
+SQL lấy tập ứng viên
+        ↓
+Exact / Partial / Accent-insensitive / Fuzzy
+        ↓
+Ranking
+        ↓
+Danh sách EmployeeRecord + do_khop
+        ↓
+Backend JSON
+        ↓
+UI hiển thị nhiều kết quả
 ```
+
+SQL chịu trách nhiệm lưu và truy vấn dữ liệu; Search Engine có thể dùng SQL để lấy ứng viên và Python để tính fuzzy/ranking.
 
 ---
 
-## 4. Các thành phần chính
+## 4. Thành phần và trách nhiệm
 
-### 4.1. UI – User Interface (giao diện người dùng)
+### 4.1. UI / Web Interface
 
 Trách nhiệm:
 
 - chọn/upload file;
-- hiển thị trạng thái upload;
-- nhập query tìm kiếm;
-- gửi yêu cầu tới backend;
+- hiển thị trạng thái xử lý;
+- hiển thị thông tin OCR nếu cần;
+- nhập query;
+- gửi request tới backend;
 - hiển thị nhiều kết quả;
-- hiển thị thông báo lỗi/cảnh báo.
+- hiển thị lỗi/cảnh báo dễ hiểu.
 
-UI không nên tự thực hiện logic đọc PDF, mapping schema hoặc truy vấn database trực tiếp trong kiến trúc tích hợp cuối.
+UI không trực tiếp:
 
-Framework chưa khóa. CK1-05 khảo sát Streamlit/Gradio hoặc lựa chọn phù hợp khác.
-
----
+- đọc PDF;
+- chạy OCR;
+- mapping schema;
+- viết SQL business logic.
 
 ### 4.2. Backend / API
 
 Trách nhiệm:
 
-- là lớp kết nối UI với business logic;
+- là cổng giao tiếp cho UI;
 - nhận file;
-- gọi File Processing Pipeline;
-- gọi Storage;
-- nhận query search;
+- điều phối File Processing Pipeline;
+- gọi Storage/SQLite;
+- nhận query;
 - gọi Search Engine;
-- trả response có cấu trúc;
+- trả JSON có cấu trúc;
 - xử lý lỗi API.
 
-Framework chưa khóa. CK1-04 khảo sát FastAPI/Flask hoặc phương án khác.
-
----
+Framework backend có thể được CK1-04 chốt giữa FastAPI/Flask hoặc phương án phù hợp; việc này không thay đổi kiến trúc logic.
 
 ### 4.3. File Reader
-
-Trách nhiệm:
-
-- nhận file;
-- xác định định dạng;
-- gọi reader phù hợp;
-- đọc nội dung cơ bản;
-- trả dữ liệu trung gian và metadata;
-- không làm toàn ứng dụng crash khi file không hợp lệ.
 
 Reader dự kiến:
 
@@ -130,30 +169,62 @@ DOCX Reader
 PDF Reader
 ```
 
-PDF scan/OCR nằm ngoài yêu cầu bắt buộc CK1.
+Trách nhiệm:
 
----
+- xác định định dạng;
+- đọc nội dung cơ bản;
+- trả text/table/metadata;
+- không tự lưu database;
+- không tự Search.
 
-### 4.4. Information Extraction
+### 4.4. PDF Reader + OCR
 
-**Information Extraction (trích xuất thông tin)** chuyển dữ liệu thô thành các trường có ý nghĩa.
+Đây là một nhánh bắt buộc.
 
-Với file bảng, bước này có thể đơn giản là lấy header và row.
+PDF Reader phải:
 
-Với Word/PDF, bước này có thể cần:
+1. thử trích xuất text trực tiếp;
+2. đánh giá text có đủ dùng hay không;
+3. nếu PDF scan/không đủ text → chuyển sang OCR;
+4. trả text OCR và metadata.
 
-- nhận diện bảng;
-- nhận diện pattern `Tên trường: Giá trị`;
+Luồng:
+
+```text
+PDF
+ ↓
+Direct Text Extraction
+ ↓
+Text đủ dùng?
+  │
+  ├── Có → Extraction
+  │
+  └── Không → Convert page to image → OCR → Extraction
+```
+
+OCR engine có thể thay thế, nhưng contract output phải giữ ổn định.
+
+### 4.5. Information Extraction
+
+Chuyển dữ liệu thô thành trường có ý nghĩa.
+
+Với dữ liệu bảng:
+
+- header;
+- row;
+- cell.
+
+Với DOCX/PDF/OCR text:
+
+- bảng;
+- pattern `Tên trường: Giá trị`;
+- dòng/khối text;
 - rule-based extraction;
-- hoặc phương pháp AI nếu sau này cần.
+- có thể bổ sung AI nếu nhóm chốt sau.
 
----
+### 4.6. Schema Mapping
 
-### 4.5. Schema Mapping
-
-**Schema Mapping (ánh xạ cấu trúc)** biến tên trường khác nhau thành field chuẩn.
-
-Ví dụ:
+Biến tên trường khác nhau thành field chuẩn.
 
 ```text
 Employee ID
@@ -163,11 +234,9 @@ Mã cán bộ
 ma_nhan_vien
 ```
 
-CK1 sử dụng alias/rule làm baseline. AI mapping có thể được khảo sát sau nếu baseline không đủ.
+Baseline dùng alias/rule. AI-assisted mapping có thể được thêm nếu thật sự cần.
 
----
-
-### 4.6. Normalization & Validation
+### 4.7. Normalization & Validation
 
 Trách nhiệm:
 
@@ -175,43 +244,53 @@ Trách nhiệm:
 - chuẩn hóa null;
 - kiểm tra trường bắt buộc;
 - kiểm tra duplicate;
-- chuẩn hóa email;
 - giữ Unicode tiếng Việt;
-- tạo danh sách record hợp lệ và record lỗi.
+- tạo danh sách record hợp lệ;
+- tạo danh sách record lỗi.
 
----
+### 4.8. SQLite / SQL Storage
 
-### 4.7. Storage
+**Đã chốt:** Storage chính thức là SQLite.
 
-Storage là lớp lưu dữ liệu nhân viên.
+Trách nhiệm:
 
-Công nghệ chưa khóa.
+- tạo database/schema;
+- lưu EmployeeRecord;
+- kiểm soát khóa chính `ma_nhan_vien`;
+- truy vấn theo mã/tên/đơn vị;
+- hỗ trợ transaction khi import;
+- cung cấp dữ liệu cho Search Engine;
+- không để UI truy cập database trực tiếp.
 
-Các phương án CK1-04 cần đánh giá:
+Database file baseline:
 
-- DataFrame/in-memory;
-- SQLite;
-- MySQL/PostgreSQL nếu thật sự cần.
+```text
+data/employee.db
+```
 
-Trong kiến trúc, các module khác chỉ nên phụ thuộc vào interface Storage thay vì viết logic phụ thuộc sâu vào một database cụ thể.
+Có thể đổi tên/path nhưng không được hard-code đường dẫn máy cá nhân.
 
----
-
-### 4.8. Retrieval / Search Engine
+### 4.9. Retrieval / Search Engine
 
 Trách nhiệm:
 
 - nhận query;
 - chuẩn hóa query;
-- tìm exact match;
-- tìm partial match;
-- hỗ trợ hoa/thường;
-- hỗ trợ có dấu/không dấu;
-- thử fuzzy matching;
-- ranking kết quả;
+- exact match;
+- partial match;
+- không phân biệt hoa/thường;
+- có dấu/không dấu;
+- fuzzy matching;
+- ranking;
 - trả kết quả theo schema chung.
 
-Search Engine không phụ thuộc UI.
+Search Engine có thể kết hợp:
+
+```text
+SQL candidate retrieval
+        +
+Python similarity/ranking
+```
 
 ---
 
@@ -223,53 +302,60 @@ UI
 ▼
 Backend
 │ điều phối
-├── File Processing
+├── File Processing Pipeline
 ├── Search Engine
-└── Storage
+└── SQLite Storage
 
-File Processing
+File Processing Pipeline
 ├── Reader
+├── PDF OCR
 ├── Extraction
 ├── Mapping
 └── Normalization
 
 Search Engine
-└── sử dụng dữ liệu từ Storage
+└── truy xuất dữ liệu qua Storage/SQL
 ```
 
-Nguyên tắc quan trọng: không để mỗi module tự đọc file, tự đặt schema và tự truy vấn theo cách riêng.
+Nguyên tắc: mỗi module chỉ chịu trách nhiệm phần của mình.
 
 ---
 
 ## 6. Kiến trúc theo chu kỳ
 
-### CK1 – Prototype độc lập có chuẩn chung
+### CK1 – Prototype có chuẩn chung
 
 ```text
-                 CK1-01
-        Requirements + Schema
-                 │
-       ┌─────────┼─────────┐
-       ↓         ↓         ↓
-    CK1-02    CK1-03    CK1-04
-    Reader     Search    DB/API
-       │         │         │
-       └─────────┼─────────┘
-                 ↓
-              CK1-05
-              UI mẫu
+                    CK1-01
+         Requirements + Schema + Architecture
+                       │
+        ┌──────────────┼───────────────┐
+        ↓              ↓               ↓
+     CK1-02         CK1-03          CK1-04
+ Reader + OCR        Search        SQLite/API
+        │              │               │
+        └──────────────┼───────────────┘
+                       ↓
+                    CK1-05
+                    UI mẫu
 ```
 
-CK1-02 đến CK1-05 có thể làm song song, nhưng phải nhận Data Schema/mock data từ CK1-01.
+CK1-02 đến CK1-05 có thể làm song song, nhưng phải theo contract của CK1-01.
 
-### CK2 – Tích hợp
+### CK2 – Tích hợp end-to-end
 
 ```text
 File
  ↓
-Reader + Extraction + Mapping + Normalize
+Reader / OCR
  ↓
-Storage
+Extraction
+ ↓
+Mapping
+ ↓
+Normalization
+ ↓
+SQLite
  ↓
 Search Engine
  ↓
@@ -278,13 +364,13 @@ Backend
 UI
 ```
 
-Mục tiêu CK2: luồng end-to-end chạy được.
+Mục tiêu CK2: luồng chạy được từ upload đến search result.
 
-### CK3 – Hoàn thiện
+### CK3 – Hoàn thiện và triển khai
 
 ```text
 Hệ thống CK2
-   ├── Test
+   ├── Test file/OCR/SQL/Search/API/UI
    ├── Sửa lỗi
    ├── Packaging
    ├── Server deployment
@@ -297,13 +383,12 @@ Hệ thống CK2
 
 ## 7. Cấu trúc source code đề xuất
 
-Đây là cấu trúc định hướng, có thể điều chỉnh sau review CK1:
-
 ```text
 employee-information-retrieval/
 │
 ├── data/
 │   ├── mock_data.xlsx
+│   ├── employee.db
 │   └── samples/
 │
 ├── docs/
@@ -314,21 +399,32 @@ employee-information-retrieval/
 │
 ├── src/
 │   ├── readers/
+│   │   ├── excel_reader.py
+│   │   ├── csv_reader.py
+│   │   ├── word_reader.py
+│   │   └── pdf_reader.py
+│   │
+│   ├── ocr/
+│   │   └── pdf_ocr.py
+│   │
 │   ├── extraction/
 │   ├── normalization/
-│   ├── search/
 │   ├── storage/
+│   │   ├── database.py
+│   │   └── schema.sql
+│   │
+│   ├── search/
 │   ├── backend/
 │   └── ui/
 │
 ├── tests/
 │   ├── sample_files/
-│   ├── test_readers/
-│   ├── test_search/
-│   ├── test_storage/
-│   └── test_integration/
+│   ├── test_readers.py
+│   ├── test_ocr.py
+│   ├── test_storage.py
+│   ├── test_search.py
+│   └── test_api.py
 │
-├── app.py
 ├── requirements.txt
 ├── README.md
 └── .gitignore
@@ -336,62 +432,61 @@ employee-information-retrieval/
 
 ---
 
-## 8. Deployment – mô hình demo
+## 8. Mô hình triển khai
 
-```mermaid
-flowchart LR
-    Leader[Máy Leader] --> Server[Ứng dụng/Server]
-    Client1[Máy thành viên] --> Server
-    Client2[Máy giảng viên / máy khác] --> Server
+```text
+                    MÁY LEADER
+            ┌─────────────────────┐
+            │ UI                  │
+            │ Backend             │
+            │ OCR                 │
+            │ SQLite employee.db  │
+            └──────────┬──────────┘
+                       │
+                 LAN / Network
+            ┌──────────┼──────────┐
+            ↓          ↓          ↓
+          Client 1   Client 2   Client 3
+          Browser    Browser    Browser
 ```
 
-Máy leader chạy ứng dụng bằng địa chỉ host phù hợp, ví dụ `0.0.0.0`, sau đó máy khác trong mạng phù hợp truy cập IP và port của server.
-
-Chi tiết triển khai được quyết định ở CK3 và ghi trong tài liệu deployment.
+Máy client không cần cài Python/OCR/SQLite nếu chỉ truy cập giao diện web.
 
 ---
 
-## 9. Observability – log và thông báo
+## 9. Điểm cần test riêng vì đã chốt OCR + SQL
 
-MVP chưa cần hệ thống giám sát phức tạp, nhưng nên ghi log tối thiểu cho:
+### OCR
 
-- file upload;
-- định dạng file;
-- số bản ghi đọc được;
-- số bản ghi hợp lệ/lỗi;
-- lỗi parser;
-- lỗi database;
-- lỗi search;
-- lỗi API.
+- PDF text;
+- PDF scan rõ;
+- PDF scan tiếng Việt;
+- PDF nhiều trang;
+- OCR không nhận được text;
+- OCR ra text sai một phần;
+- bảng trong PDF scan.
 
-Không log dữ liệu nhạy cảm nếu sau này dùng dữ liệu thật.
+### SQL
 
----
-
-## 10. Security – phạm vi cơ bản
-
-Trong demo môn học:
-
-- không commit password/token lên GitHub;
-- dùng `.env` cho secret nếu có;
-- giới hạn extension upload;
-- không tin tuyệt đối tên file;
-- tránh thực thi nội dung file người dùng;
-- dữ liệu mock không chứa thông tin thật.
-
-Phân quyền và authentication phức tạp chưa thuộc MVP trừ khi giảng viên yêu cầu thêm.
+- tạo database mới;
+- import nhiều record;
+- duplicate mã nhân viên;
+- query theo mã;
+- query theo tên;
+- transaction lỗi;
+- restart server nhưng dữ liệu vẫn tồn tại.
 
 ---
 
-## 11. Điểm mở kiến trúc
+## 10. Thành phần AI
 
-Chưa khóa:
+Thành phần AI chính vẫn chưa khóa.
 
-- SQLite hay database khác;
-- FastAPI/Flask hay backend khác;
-- Streamlit/Gradio hay UI khác;
-- Docker có bắt buộc không;
-- AI nằm ở Search, Mapping, Extraction hay Natural Language Query;
-- OCR PDF scan.
+OCR là một chức năng nhận dạng cần thiết cho đầu vào scan, nhưng nhóm không nên mặc định coi OCR là toàn bộ đóng góp AI của đề tài. CK1/CK2 có thể khảo sát thêm AI cho:
 
-Các quyết định này phải được cập nhật sau review CK1, không để từng task tự khóa riêng.
+- schema mapping;
+- information extraction;
+- semantic search;
+- natural-language query.
+
+Quyết định cuối phải dựa trên khả năng triển khai và test được.

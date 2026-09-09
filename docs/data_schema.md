@@ -1,17 +1,15 @@
 # DATA SCHEMA – Cấu trúc dữ liệu chuẩn của hệ thống nhân viên
 
-**Phiên bản:** 0.1 – CK1  
-**Mục đích:** Là hợp đồng dữ liệu chung cho File Reader, Normalization, Storage, Search, Backend và UI.
+**Phiên bản:** 0.2 – CK1  
+**Mục đích:** Là hợp đồng dữ liệu chung cho File Reader, OCR, Extraction, Normalization, SQLite/SQL, Search, Backend và UI.
 
 ---
 
 ## 1. Nguyên tắc chung
 
-Mọi dữ liệu nhân viên sau khi đi qua bước trích xuất/chuẩn hóa phải được chuyển về cùng một schema. Các module phía sau không được tự đặt tên trường khác nếu chưa cập nhật tài liệu này.
+Mọi dữ liệu nhân viên sau khi đi qua bước trích xuất/chuẩn hóa phải được chuyển về cùng một schema.
 
-Tên field trong code sử dụng `snake_case`, tiếng Việt không dấu.
-
-Ví dụ:
+Tên field trong code sử dụng `snake_case`, tiếng Việt không dấu:
 
 ```text
 ma_nhan_vien
@@ -22,20 +20,28 @@ email
 so_dien_thoai
 ```
 
+Không module nào được tự đổi tên field chuẩn nếu chưa được leader duyệt và cập nhật tài liệu này.
+
 ---
 
-## 2. Schema chuẩn v0.1
+## 2. Schema chuẩn v0.2
 
-| Field chuẩn | Kiểu | Bắt buộc | Cho phép rỗng | Ý nghĩa |
+| Field chuẩn | Kiểu logic | Bắt buộc | Cho phép rỗng | Ý nghĩa |
 |---|---|---:|---:|---|
-| `ma_nhan_vien` | string | Có | Không | Mã định danh nhân viên trong doanh nghiệp |
+| `ma_nhan_vien` | string | Có | Không | Mã định danh nhân viên |
 | `ho_ten` | string | Có | Không | Họ và tên đầy đủ |
 | `don_vi` | string | Có | Không | Đơn vị/phòng/ban công tác |
 | `chuc_vu` | string | Không | Có | Chức vụ/vị trí công việc |
 | `email` | string | Không | Có | Email nhân viên |
-| `so_dien_thoai` | string | Không | Có | Số điện thoại hoặc chuỗi định danh liên hệ |
+| `so_dien_thoai` | string | Không | Có | Số điện thoại/liên hệ |
 
-Trong dữ liệu thực tế, nếu giảng viên cung cấp thêm trường quan trọng, schema có thể mở rộng nhưng phải giữ tương thích với các trường cốt lõi.
+Ba trường cốt lõi bắt buộc để một record được chấp nhận trong baseline:
+
+```text
+ma_nhan_vien
+ho_ten
+don_vi
+```
 
 ---
 
@@ -52,14 +58,14 @@ Trong dữ liệu thực tế, nếu giảng viên cung cấp thêm trường qu
 }
 ```
 
-Ví dụ trường tùy chọn bị thiếu:
+Record có trường tùy chọn bị thiếu:
 
 ```json
 {
   "ma_nhan_vien": "NV002",
   "ho_ten": "Nguyễn Văn B",
   "don_vi": "Phòng Nhân sự",
-  "chuc_vu": "Nhân viên",
+  "chuc_vu": null,
   "email": null,
   "so_dien_thoai": null
 }
@@ -69,7 +75,7 @@ Ví dụ trường tùy chọn bị thiếu:
 
 ## 4. Danh sách record chuẩn
 
-Các module nên trao đổi danh sách nhân viên dưới dạng `list[dict]` hoặc cấu trúc tương đương có thể serialize thành JSON.
+Các module trao đổi danh sách nhân viên dưới dạng `list[dict]` hoặc cấu trúc tương đương có thể serialize thành JSON.
 
 ```json
 [
@@ -80,14 +86,6 @@ Các module nên trao đổi danh sách nhân viên dưới dạng `list[dict]` 
     "chuc_vu": "Chuyên viên",
     "email": "mock001@example.com",
     "so_dien_thoai": "SDT_MOCK_001"
-  },
-  {
-    "ma_nhan_vien": "NV002",
-    "ho_ten": "Nguyễn Văn B",
-    "don_vi": "Phòng Nhân sự",
-    "chuc_vu": "Nhân viên",
-    "email": null,
-    "so_dien_thoai": null
   }
 ]
 ```
@@ -96,9 +94,7 @@ Các module nên trao đổi danh sách nhân viên dưới dạng `list[dict]` 
 
 ## 5. Bảng ánh xạ tên cột – Alias Mapping
 
-### 5.1. Mã nhân viên
-
-Các alias ban đầu:
+### 5.1. Mã nhân viên → `ma_nhan_vien`
 
 ```text
 Mã NV
@@ -112,16 +108,9 @@ Employee ID
 EmployeeID
 Staff ID
 ID nhân viên
-ID
 ```
 
-Ánh xạ về:
-
-```text
-ma_nhan_vien
-```
-
-### 5.2. Họ tên
+### 5.2. Họ tên → `ho_ten`
 
 ```text
 Họ tên
@@ -134,13 +123,7 @@ Employee Name
 Name
 ```
 
-Ánh xạ về:
-
-```text
-ho_ten
-```
-
-### 5.3. Đơn vị
+### 5.3. Đơn vị → `don_vi`
 
 ```text
 Đơn vị
@@ -155,13 +138,7 @@ Unit
 Division
 ```
 
-Ánh xạ về:
-
-```text
-don_vi
-```
-
-### 5.4. Chức vụ
+### 5.4. Chức vụ → `chuc_vu`
 
 ```text
 Chức vụ
@@ -174,13 +151,7 @@ Job Title
 Role
 ```
 
-Ánh xạ về:
-
-```text
-chuc_vu
-```
-
-### 5.5. Email
+### 5.5. Email → `email`
 
 ```text
 Email
@@ -191,13 +162,7 @@ Email công ty
 Company Email
 ```
 
-Ánh xạ về:
-
-```text
-email
-```
-
-### 5.6. Số điện thoại
+### 5.6. Số điện thoại → `so_dien_thoai`
 
 ```text
 Số điện thoại
@@ -210,25 +175,19 @@ Phone Number
 Mobile
 ```
 
-Ánh xạ về:
-
-```text
-so_dien_thoai
-```
-
 ---
 
 ## 6. Quy tắc chuẩn hóa tên cột
 
-Trước khi so khớp alias, tên cột nên được chuẩn hóa theo các bước:
+Trước khi so khớp alias:
 
 1. chuyển về string;
 2. trim khoảng trắng đầu/cuối;
-3. gộp nhiều khoảng trắng liên tiếp thành một;
-4. chuyển về chữ thường khi so sánh;
-5. có thể tạo phiên bản không dấu để tăng khả năng ánh xạ;
-6. bỏ một số ký tự phân cách không cần thiết như `_`, `-`, `.`, `:` khi so sánh alias;
-7. giữ nguyên tên cột gốc để phục vụ log/debug.
+3. gộp nhiều khoảng trắng liên tiếp;
+4. chuyển về chữ thường để so sánh;
+5. có thể tạo phiên bản không dấu;
+6. bỏ ký tự phân cách không cần thiết khi so sánh như `_`, `-`, `.`, `:`;
+7. giữ tên cột gốc trong metadata/log để debug.
 
 Ví dụ:
 
@@ -246,14 +205,12 @@ ma_nhan_vien
 
 ### 7.1. `ma_nhan_vien`
 
-- kiểu string;
+- lưu dưới dạng string;
 - trim khoảng trắng;
-- không được rỗng trong bản ghi hợp lệ;
-- không tự ép thành số vì mã có thể chứa chữ và số;
-- nên giữ nguyên zero ở đầu nếu có;
-- kiểm tra trùng sau chuẩn hóa.
-
-Ví dụ:
+- không được rỗng;
+- không ép sang số;
+- phải giữ zero đầu nếu có;
+- kiểm tra duplicate.
 
 ```text
 " NV001 " → "NV001"
@@ -262,55 +219,46 @@ Ví dụ:
 
 ### 7.2. `ho_ten`
 
-- kiểu string;
 - trim khoảng trắng;
-- gộp nhiều khoảng trắng;
-- giữ Unicode và dấu tiếng Việt;
-- không được rỗng;
-- không nên tự chuyển toàn bộ thành Title Case trong dữ liệu gốc nếu chưa kiểm chứng vì có thể làm sai tên đặc biệt;
-- Search Engine có thể tạo phiên bản chuẩn hóa riêng cho tìm kiếm.
-
-Ví dụ:
-
-```text
-"  Nguyễn   Văn A  " → "Nguyễn Văn A"
-```
+- gộp nhiều khoảng trắng thành một;
+- giữ Unicode tiếng Việt;
+- không bắt buộc đổi kiểu viết hoa/thường trong dữ liệu gốc;
+- Search Engine tự tạo dạng chuẩn hóa phục vụ tìm kiếm.
 
 ### 7.3. `don_vi`
 
-- kiểu string;
-- trim khoảng trắng;
-- không được rỗng trong schema v0.1;
-- không tự gộp các đơn vị gần giống nhau nếu chưa có quy tắc/đề xuất chính thức.
+- trim/gộp khoảng trắng;
+- giữ tên đơn vị ở dạng có dấu;
+- có thể chuẩn hóa alias đơn vị sau nếu dữ liệu thật yêu cầu.
 
 ### 7.4. `chuc_vu`
 
-- kiểu string hoặc null;
-- trim khoảng trắng;
-- cho phép thiếu.
+- cho phép `null`;
+- trim/gộp khoảng trắng nếu có.
 
 ### 7.5. `email`
 
-- kiểu string hoặc null;
+- cho phép `null`;
 - trim khoảng trắng;
-- có thể chuyển về chữ thường;
-- validation email chỉ là kiểm tra định dạng cơ bản, không xác minh email có tồn tại.
+- nên chuyển lowercase;
+- có thể validate định dạng cơ bản;
+- email sai định dạng không được làm toàn pipeline crash.
 
 ### 7.6. `so_dien_thoai`
 
-- kiểu string hoặc null;
-- không ép sang integer;
-- dữ liệu mock sử dụng chuỗi giả lập để tránh nhầm là số điện thoại thật.
+- lưu dạng string;
+- cho phép `null`;
+- không ép số để tránh mất zero đầu;
+- rule chuẩn hóa chi tiết chờ dữ liệu thật.
 
 ---
 
 ## 8. Giá trị rỗng
 
-Các dạng sau nên được quy về `null`/`None` khi thích hợp:
+Các giá trị sau có thể được chuẩn hóa thành `null` khi phù hợp:
 
 ```text
 ""
-"   "
 "N/A"
 "NA"
 "null"
@@ -318,15 +266,15 @@ Các dạng sau nên được quy về `null`/`None` khi thích hợp:
 "Không có"
 ```
 
-Không được quy về null nếu giá trị đó thực sự là dữ liệu hợp lệ của tổ chức.
+Không được tự biến dữ liệu hợp lệ thành null chỉ vì chuỗi khác lạ; cần có rule rõ ràng.
 
 ---
 
-## 9. Bản ghi hợp lệ và bản ghi lỗi
+## 9. Record hợp lệ và record lỗi
 
-### 9.1. Bản ghi hợp lệ tối thiểu
+### Record hợp lệ
 
-Một bản ghi được xem là hợp lệ theo schema v0.1 nếu có:
+Có đầy đủ tối thiểu:
 
 ```text
 ma_nhan_vien
@@ -334,158 +282,140 @@ ho_ten
 don_vi
 ```
 
-`chuc_vu`, `email`, `so_dien_thoai` có thể thiếu.
+### Record lỗi
 
-### 9.2. Bản ghi lỗi
-
-Các trường hợp cần cảnh báo hoặc loại khỏi import tùy chính sách CK2:
+Ví dụ:
 
 - thiếu `ma_nhan_vien`;
 - thiếu `ho_ten`;
 - thiếu `don_vi`;
-- mã nhân viên bị trùng;
-- một dòng hoàn toàn rỗng;
-- dữ liệu không thể parse.
+- trùng `ma_nhan_vien` theo policy import;
+- OCR quá lỗi khiến không xác định được trường bắt buộc.
 
-Không tự xóa dữ liệu lỗi mà không có log/summary.
-
----
-
-## 10. Quy tắc xử lý mã trùng
-
-Tại CK1 chưa khóa chính sách cuối cùng. CK2 phải chọn một trong các hướng:
-
-1. từ chối bản ghi trùng;
-2. cập nhật bản ghi cũ;
-3. giữ bản ghi đầu tiên và log bản ghi sau;
-4. hỏi người dùng khi upload nếu UI hỗ trợ.
-
-Bất kể chọn hướng nào, hành vi phải ổn định và có log.
+Record lỗi phải được ghi nhận để báo cáo, không âm thầm bỏ qua.
 
 ---
 
-## 11. Schema dữ liệu trung gian từ File Reader
+## 10. Schema SQL chính thức – SQLite
 
-File Reader chưa bắt buộc phải trả ngay schema nhân viên chuẩn, vì Word/PDF có thể là text tự do. Tuy nhiên output chung nên có metadata:
+Database chính thức của bản demo là **SQLite**, truy vấn bằng SQL.
 
-```json
-{
-  "trang_thai": "success",
-  "loai_file": "xlsx",
-  "ten_file": "employees.xlsx",
-  "du_lieu": [],
-  "loi": null,
-  "canh_bao": []
-}
+### 10.1. Bảng `nhan_vien`
+
+DDL baseline:
+
+```sql
+CREATE TABLE IF NOT EXISTS nhan_vien (
+    ma_nhan_vien TEXT PRIMARY KEY,
+    ho_ten TEXT NOT NULL,
+    don_vi TEXT NOT NULL,
+    chuc_vu TEXT,
+    email TEXT,
+    so_dien_thoai TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
 ```
 
-Nếu lỗi:
+Lý do dùng `TEXT` cho mã và số điện thoại:
+
+- mã có thể chứa chữ;
+- mã/số điện thoại có thể có zero đầu;
+- không dùng chúng để tính toán số học.
+
+### 10.2. Index phục vụ Search
+
+Baseline có thể tạo index:
+
+```sql
+CREATE INDEX IF NOT EXISTS idx_nhan_vien_ho_ten
+ON nhan_vien(ho_ten);
+
+CREATE INDEX IF NOT EXISTS idx_nhan_vien_don_vi
+ON nhan_vien(don_vi);
+```
+
+Fuzzy Search có thể cần xử lý thêm ở tầng Python/Search Engine thay vì chỉ SQL thuần.
+
+### 10.3. Policy duplicate
+
+Baseline đề xuất:
+
+- `ma_nhan_vien` là khóa chính;
+- record cùng mã không được chèn thành hai nhân viên riêng;
+- CK2 chốt một trong hai policy:
+  - `UPDATE/UPSERT` record cũ; hoặc
+  - từ chối và trả cảnh báo duplicate.
+
+Cho đến khi CK2 chốt, module phải phát hiện duplicate và báo rõ.
+
+---
+
+## 11. Metadata nguồn dữ liệu
+
+Để phục vụ debug/test, pipeline có thể giữ metadata ngoài bảng nhân viên chính:
 
 ```json
 {
-  "trang_thai": "error",
+  "ten_file": "employees_scan.pdf",
   "loai_file": "pdf",
-  "ten_file": "employees.pdf",
-  "du_lieu": null,
-  "loi": "Không trích xuất được text",
-  "canh_bao": ["Có thể là PDF scan"]
-}
-```
-
----
-
-## 12. Schema kết quả chuẩn hóa
-
-Normalization phải trả dữ liệu gần dạng sau:
-
-```json
-{
-  "trang_thai": "success",
-  "nguon": {
-    "ten_file": "employees.xlsx",
-    "loai_file": "xlsx"
-  },
-  "tong_so_ban_ghi": 50,
-  "so_hop_le": 48,
-  "so_loi": 2,
-  "nhan_vien": [],
-  "loi_ban_ghi": [],
+  "pdf_mode": "scan",
+  "ocr_da_su_dung": true,
+  "ocr_engine": "tesseract",
   "canh_bao": []
 }
 ```
 
-`nhan_vien` chứa record theo schema chuẩn.
+Metadata này không bắt buộc phải nằm trong bảng `nhan_vien`.
 
 ---
 
-## 13. Schema kết quả Search
+## 12. Metadata OCR
 
-Search Engine nên trả danh sách có đủ dữ liệu cần hiển thị và metadata tìm kiếm:
+Khi nguồn là PDF scan, output trung gian nên có tối thiểu:
+
+- `pdf_mode`: `text` hoặc `scan`;
+- `ocr_da_su_dung`: boolean;
+- `ocr_engine`: tên engine nếu biết;
+- `ocr_confidence`: điểm tin cậy nếu engine cung cấp;
+- `ocr_text`: text sau OCR hoặc đường dẫn/field tương đương;
+- `canh_bao`: các vấn đề nhận dạng.
+
+Không bắt buộc mọi OCR engine đều có confidence score.
+
+---
+
+## 13. Search result schema
+
+Kết quả Search Engine có thể mở rộng EmployeeRecord bằng:
 
 ```json
 {
-  "query": "Nguyễn Văn",
-  "tong_ket_qua": 3,
-  "ket_qua": [
-    {
-      "ma_nhan_vien": "NV001",
-      "ho_ten": "Nguyễn Văn A",
-      "don_vi": "Phòng CNTT",
-      "chuc_vu": "Chuyên viên",
-      "email": "mock001@example.com",
-      "so_dien_thoai": "SDT_MOCK_001",
-      "do_khop": 100.0,
-      "kieu_khop": "partial"
-    }
-  ]
+  "ma_nhan_vien": "NV001",
+  "ho_ten": "Nguyễn Văn A",
+  "don_vi": "Phòng CNTT",
+  "chuc_vu": "Chuyên viên",
+  "email": "mock001@example.com",
+  "so_dien_thoai": "SDT_MOCK_001",
+  "do_khop": 100.0,
+  "kieu_khop": "partial"
 }
 ```
 
-`do_khop` và `kieu_khop` có thể null nếu phương pháp hiện tại chưa sử dụng scoring, nhưng interface nên dự trù để UI không phải thay đổi lớn sau này.
+`do_khop` ưu tiên thang 0–100 để UI dễ hiển thị.
 
 ---
 
-## 14. Kiểu khớp đề xuất
+## 14. Quy tắc thay đổi schema
 
-Giá trị `kieu_khop` có thể dùng:
+Nếu thành viên cần thêm field:
 
-```text
-exact
-partial
-accent_insensitive
-fuzzy
-semantic
-```
+1. tạo đề xuất;
+2. nêu lý do;
+3. đánh giá ảnh hưởng tới SQL, Search, Backend và UI;
+4. leader duyệt;
+5. cập nhật `data_schema.md`;
+6. cập nhật SQLite migration/schema;
+7. thông báo toàn nhóm.
 
-`semantic` chỉ dùng nếu sau này nhóm thực sự tích hợp tìm kiếm ngữ nghĩa.
-
----
-
-## 15. Quy tắc version schema
-
-Nếu schema thay đổi:
-
-- cập nhật số phiên bản;
-- ghi changelog;
-- thông báo tất cả thành viên;
-- cập nhật mock data;
-- cập nhật API/interface nếu bị ảnh hưởng.
-
-Ví dụ:
-
-```text
-v0.1 → thêm schema ban đầu
-v0.2 → thêm truong dia_diem_lam_viec
-```
-
----
-
-## 16. Các quyết định chưa khóa
-
-- Có bắt buộc `chuc_vu` hay không khi có dữ liệu thật.
-- Có thêm phòng ban cấp cha/con hay không.
-- Có lưu raw source để truy vết không.
-- Có thêm `nguon_file`, `dong_nguon`, `thoi_gian_import` vào database không.
-- Cách xử lý duplicate chính thức.
-
-Các nội dung này phải được quyết định sau khi có dữ liệu thực tế hoặc sau review CK1.
+Không tự thay đổi schema trong branch cá nhân mà không báo.

@@ -1,28 +1,29 @@
 # INTEGRATION RULES – Quy tắc tích hợp giữa các module
 
-**Phiên bản:** 0.1 – CK1  
-**Mục đích:** Đảm bảo 5 thành viên phát triển các module độc lập nhưng có thể ghép lại trong CK2.
+**Phiên bản:** 0.2 – CK1  
+**Quyết định đã chốt:** SQLite/SQL là Storage chính thức; OCR bắt buộc cho PDF scan.  
+**Mục đích:** Đảm bảo các thành viên phát triển module độc lập nhưng ghép được trong CK2.
 
 ---
 
 ## 1. Nguyên tắc bắt buộc
 
 1. Mọi module dùng Data Schema trong `data_schema.md`.
-2. Không tự đổi tên field chuẩn nếu chưa cập nhật tài liệu chung.
+2. Không tự đổi tên field chuẩn nếu chưa được leader duyệt.
 3. Module phải có input/output rõ ràng.
-4. Lỗi phải được trả về có cấu trúc hoặc raise exception có ý nghĩa; không dùng `print` làm cơ chế giao tiếp chính giữa module.
+4. Lỗi phải có cấu trúc hoặc exception có ý nghĩa; không dùng `print` làm cơ chế giao tiếp chính giữa module.
 5. Không hard-code đường dẫn máy cá nhân.
 6. Không hard-code dữ liệu nhân viên vào business logic ngoài mock/test.
-7. Mọi module phải chạy được độc lập bằng test nhỏ trước khi tích hợp.
-8. CK2 ưu tiên tích hợp sớm; không chờ toàn bộ module hoàn hảo mới ghép.
+7. Mọi module phải có test nhỏ trước khi tích hợp.
+8. Storage chính thức là SQLite; không thay bằng CSV/DataFrame trong phiên bản tích hợp cuối.
+9. PDF scan phải đi qua OCR trước Extraction.
+10. CK2 tích hợp sớm, không chờ mọi module hoàn hảo mới ghép.
 
 ---
 
 ## 2. Kiểu dữ liệu chung
 
 ### EmployeeRecord
-
-Biểu diễn logic:
 
 ```python
 {
@@ -41,7 +42,7 @@ Biểu diễn logic:
 list[EmployeeRecord]
 ```
 
-Nếu thành viên sử dụng `dataclass`, Pydantic model hoặc class riêng thì khi qua ranh giới API/module phải có khả năng convert về JSON-compatible dict.
+Nếu dùng `dataclass`, Pydantic model hoặc class riêng, khi qua ranh giới API/module phải convert được về JSON-compatible dict.
 
 ---
 
@@ -55,9 +56,7 @@ CK1-01 cung cấp:
 - `integration_rules.md`;
 - `mock_data.xlsx`.
 
-Các task CK1-02 đến CK1-05 phải sử dụng bộ ngữ cảnh này làm chuẩn.
-
-Nếu cần thay đổi schema, thành viên phải báo leader thay vì tự sửa local.
+CK1-02 đến CK1-05 phải dùng bộ tài liệu này làm chuẩn.
 
 ---
 
@@ -70,7 +69,7 @@ def doc_file(duong_dan_hoac_file) -> dict:
     ...
 ```
 
-### Success response
+### Success response chung
 
 ```json
 {
@@ -78,6 +77,7 @@ def doc_file(duong_dan_hoac_file) -> dict:
   "loai_file": "xlsx",
   "ten_file": "employees.xlsx",
   "du_lieu": [],
+  "metadata": {},
   "loi": null,
   "canh_bao": []
 }
@@ -86,8 +86,8 @@ def doc_file(duong_dan_hoac_file) -> dict:
 `du_lieu` có thể là:
 
 - list of dict cho dữ liệu bảng;
-- cấu trúc gồm `text` và `tables` cho Word/PDF;
-- nhưng phải được mô tả rõ trong module.
+- text/tables cho DOCX/PDF;
+- nhưng phải được mô tả rõ.
 
 ### Error response
 
@@ -97,22 +97,100 @@ def doc_file(duong_dan_hoac_file) -> dict:
   "loai_file": "pdf",
   "ten_file": "employees.pdf",
   "du_lieu": null,
+  "metadata": {},
   "loi": "Không đọc được file",
   "canh_bao": []
 }
 ```
 
-### Điều không được làm
-
-File Reader không tự lưu database và không tự thực hiện Search.
+File Reader không tự ghi SQLite và không tự Search.
 
 ---
 
-## 5. Contract Extraction / Mapping / Normalization
+## 5. Contract PDF Reader + OCR
+
+### Quy tắc xử lý
+
+```text
+PDF
+ ↓
+Thử lấy text trực tiếp
+ ↓
+Text đủ dùng?
+  ├─ Có → trả text
+  └─ Không → OCR → trả text OCR
+```
+
+### Success response PDF text
+
+```json
+{
+  "trang_thai": "success",
+  "loai_file": "pdf",
+  "ten_file": "employees.pdf",
+  "du_lieu": {
+    "text": "...",
+    "tables": []
+  },
+  "metadata": {
+    "pdf_mode": "text",
+    "ocr_da_su_dung": false,
+    "ocr_engine": null,
+    "ocr_confidence": null
+  },
+  "loi": null,
+  "canh_bao": []
+}
+```
+
+### Success response PDF scan
+
+```json
+{
+  "trang_thai": "success",
+  "loai_file": "pdf",
+  "ten_file": "employees_scan.pdf",
+  "du_lieu": {
+    "text": "Mã NV: NV001\nHọ tên: Nguyễn Văn A\n...",
+    "tables": []
+  },
+  "metadata": {
+    "pdf_mode": "scan",
+    "ocr_da_su_dung": true,
+    "ocr_engine": "tesseract",
+    "ocr_confidence": null
+  },
+  "loi": null,
+  "canh_bao": []
+}
+```
+
+Không bắt buộc engine phải là Tesseract; nếu thay engine thì giữ contract này.
+
+### OCR error
+
+```json
+{
+  "trang_thai": "error",
+  "loai_file": "pdf",
+  "ten_file": "scan_bad.pdf",
+  "du_lieu": null,
+  "metadata": {
+    "pdf_mode": "scan",
+    "ocr_da_su_dung": true
+  },
+  "loi": "OCR không trích xuất được nội dung sử dụng được",
+  "canh_bao": []
+}
+```
+
+---
+
+## 6. Contract Extraction / Mapping / Normalization
 
 ### Input
 
-Output từ File Reader.
+Output từ File Reader/OCR.
 
 ### Hàm logic đề xuất
 
@@ -127,8 +205,9 @@ def chuan_hoa_du_lieu(ket_qua_doc_file: dict) -> dict:
 {
   "trang_thai": "success",
   "nguon": {
-    "ten_file": "employees.xlsx",
-    "loai_file": "xlsx"
+    "ten_file": "employees_scan.pdf",
+    "loai_file": "pdf",
+    "ocr_da_su_dung": true
   },
   "tong_so_ban_ghi": 50,
   "so_hop_le": 48,
@@ -141,7 +220,7 @@ def chuan_hoa_du_lieu(ket_qua_doc_file: dict) -> dict:
 
 `nhan_vien` bắt buộc theo EmployeeRecord.
 
-`loi_ban_ghi` nên ghi tối thiểu:
+`loi_ban_ghi` tối thiểu:
 
 ```json
 {
@@ -153,12 +232,43 @@ def chuan_hoa_du_lieu(ket_qua_doc_file: dict) -> dict:
 
 ---
 
-## 6. Contract Storage
+## 7. Contract SQLite / SQL Storage
 
-Để tránh phụ thuộc database cụ thể, Storage nên cung cấp interface logic tối thiểu:
+### 7.1. Database
+
+Database baseline:
+
+```text
+data/employee.db
+```
+
+Schema SQL nằm trong:
+
+```text
+src/storage/schema.sql
+```
+
+hoặc một module migration tương đương.
+
+### 7.2. Bảng chính
+
+```sql
+CREATE TABLE IF NOT EXISTS nhan_vien (
+    ma_nhan_vien TEXT PRIMARY KEY,
+    ho_ten TEXT NOT NULL,
+    don_vi TEXT NOT NULL,
+    chuc_vu TEXT,
+    email TEXT,
+    so_dien_thoai TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+```
+
+### 7.3. Interface logic tối thiểu
 
 ```python
-def khoi_tao_luu_tru() -> None:
+def khoi_tao_database() -> None:
     ...
 
 def them_nhan_vien(nhan_vien: dict) -> dict:
@@ -173,17 +283,51 @@ def lay_nhan_vien_theo_ma(ma_nhan_vien: str) -> dict | None:
 def lay_tat_ca_nhan_vien() -> list[dict]:
     ...
 
-def tim_ung_vien_theo_ten(query: str) -> list[dict]:
+def tim_ung_vien_theo_ten(query: str, gioi_han: int = 100) -> list[dict]:
     ...
 ```
 
-Tên hàm thực tế có thể thay đổi nhưng chức năng phải tương đương và được thống nhất trước tích hợp.
+### 7.4. Quy tắc SQL
 
-Storage trả EmployeeRecord theo schema chuẩn.
+- dùng parameterized query, không nối chuỗi query từ input người dùng;
+- transaction khi insert nhiều record;
+- rollback nếu transaction thất bại;
+- trả EmployeeRecord theo schema chuẩn;
+- không trả row tuple tùy ý qua ranh giới module nếu chưa convert;
+- `ma_nhan_vien` là khóa chính;
+- duplicate phải được báo hoặc xử lý theo policy đã chốt.
+
+Ví dụ đúng:
+
+```python
+cursor.execute(
+    "SELECT * FROM nhan_vien WHERE ma_nhan_vien = ?",
+    (ma_nhan_vien,)
+)
+```
+
+Không làm:
+
+```python
+sql = "SELECT * FROM nhan_vien WHERE ma_nhan_vien = '" + ma_nhan_vien + "'"
+```
+
+### 7.5. Import response đề xuất
+
+```json
+{
+  "trang_thai": "success",
+  "tong_nhan": 50,
+  "so_insert": 48,
+  "so_duplicate": 1,
+  "so_loi": 1,
+  "loi": []
+}
+```
 
 ---
 
-## 7. Contract Search Engine
+## 8. Contract Search Engine
 
 ### Input
 
@@ -191,7 +335,7 @@ Storage trả EmployeeRecord theo schema chuẩn.
 query: string
 ```
 
-và dữ liệu ứng viên từ Storage.
+Search Engine lấy ứng viên từ SQLite/Storage.
 
 ### Hàm logic đề xuất
 
@@ -223,42 +367,43 @@ def tim_nhan_vien(query: str, gioi_han: int = 20) -> dict:
 
 ### Quy tắc
 
-- query phải được trim;
+- query phải trim;
 - query rỗng không crash;
 - kết quả có thể rỗng;
-- nhiều kết quả phải được sắp xếp theo logic ranking;
-- `do_khop` nằm trong thang được module định nghĩa rõ, ưu tiên 0–100 cho UI dễ hiển thị;
-- Search không tự render HTML/UI.
+- exact/partial dùng trước khi fuzzy nếu phù hợp;
+- có dấu/không dấu phải được xử lý;
+- kết quả xếp theo ranking;
+- `do_khop` ưu tiên thang 0–100;
+- Search không render UI.
 
 ---
 
-## 8. Contract Backend
+## 9. Contract Backend
 
-API cụ thể được khóa ở CK2. Baseline đề xuất:
+Baseline API:
 
 ### `GET /health`
 
-Mục đích: kiểm tra server.
-
-Response:
-
 ```json
 {
-  "status": "ok"
+  "status": "ok",
+  "database": "ok",
+  "ocr": "ok"
 }
 ```
 
 ### `POST /upload`
 
-Input: file.
-
 Luồng:
 
 ```text
 Backend
-→ File Reader
+→ Reader
+→ OCR nếu cần
+→ Extraction
+→ Mapping
 → Normalization
-→ Storage
+→ SQLite
 ```
 
 Response đề xuất:
@@ -266,7 +411,9 @@ Response đề xuất:
 ```json
 {
   "trang_thai": "success",
-  "ten_file": "employees.xlsx",
+  "ten_file": "employees_scan.pdf",
+  "loai_file": "pdf",
+  "ocr_da_su_dung": true,
   "tong_so_ban_ghi": 50,
   "so_hop_le": 48,
   "so_loi": 2,
@@ -276,59 +423,61 @@ Response đề xuất:
 
 ### `GET /employees/{ma_nhan_vien}`
 
-Trả một EmployeeRecord hoặc response not-found.
+Trả một EmployeeRecord hoặc not-found response.
 
 ### `GET /search?q=...`
 
-Trả schema Search Result ở mục 7.
+Trả Search Result schema.
 
 ---
 
-## 9. Contract UI
+## 10. Contract UI
 
-UI chỉ dựa trên response của Backend trong bản tích hợp CK2/CK3.
+UI chỉ gọi Backend trong bản tích hợp.
 
-### Upload screen
+### Upload
 
-UI gửi file và hiển thị:
+Hiển thị:
 
 - tên file;
+- loại file;
 - trạng thái;
-- tổng số bản ghi;
+- OCR có được sử dụng hay không;
+- tổng record;
 - số hợp lệ;
 - số lỗi;
 - cảnh báo.
 
-### Search screen
+### Search
 
-UI gửi query và hiển thị tối thiểu:
+Hiển thị tối thiểu:
 
 ```text
 Mã NV
 Họ tên
 Đơn vị
 Chức vụ
-Độ khớp (nếu có)
+Độ khớp
 ```
 
 Không giả định chỉ có một kết quả.
 
 ---
 
-## 10. Quy tắc lỗi chung
+## 11. Quy tắc lỗi chung
 
-Error object đề xuất:
+Error object:
 
 ```json
 {
   "trang_thai": "error",
-  "ma_loi": "FILE_UNSUPPORTED",
-  "thong_bao": "Định dạng file chưa được hỗ trợ",
+  "ma_loi": "OCR_FAILED",
+  "thong_bao": "Không thể OCR PDF scan",
   "chi_tiet": null
 }
 ```
 
-Một số mã lỗi có thể dùng:
+Các mã lỗi baseline:
 
 ```text
 FILE_NOT_FOUND
@@ -336,150 +485,84 @@ FILE_EMPTY
 FILE_UNSUPPORTED
 FILE_READ_ERROR
 PDF_NO_TEXT
+OCR_REQUIRED
+OCR_FAILED
+OCR_NO_USABLE_TEXT
 SCHEMA_MISSING_REQUIRED_FIELD
 DUPLICATE_EMPLOYEE_ID
 INVALID_QUERY
 EMPLOYEE_NOT_FOUND
 DATABASE_ERROR
+DATABASE_TRANSACTION_ERROR
 INTERNAL_ERROR
 ```
 
-Mục tiêu của mã lỗi là giúp UI và test xác định hành vi ổn định.
-
 ---
 
-## 11. Quy tắc Git/GitHub
+## 12. Quy tắc Git/GitHub
 
-### Branch
-
-Đề xuất:
+### Branch đề xuất
 
 ```text
 main
-feature/CK1-02-file-reader
+feature/CK1-02-file-reader-ocr
 feature/CK1-03-search
-feature/CK1-04-storage-backend
-feature/CK1-05-ui
+feature/CK1-04-sql-backend
+feature/CK1-05-ui-server
 ```
-
-CK2 có thể dùng branch mới hoặc tiếp tục theo module.
 
 ### Commit
 
-Commit message nên chứa task ID:
+Commit nên gắn task Jira, ví dụ:
 
 ```text
-CK1-02: thêm reader cho xlsx và csv
-CK1-03: thêm partial search không phân biệt hoa thường
+CK1-02: thêm OCR cho PDF scan
+CK1-04: tạo schema SQLite và import mock data
 ```
 
 ### Pull Request
 
-Trước merge:
+PR phải có:
 
-- code chạy;
-- không commit file môi trường/secret;
-- cập nhật README nếu cách chạy thay đổi;
-- leader hoặc người review kiểm tra interface.
+- task liên quan;
+- thay đổi chính;
+- cách chạy;
+- test đã thực hiện;
+- vấn đề còn lại.
+
+Leader review trước khi merge vào nhánh tích hợp/main theo workflow nhóm.
 
 ---
 
-## 12. Quy tắc thư mục
+## 13. Thứ tự tích hợp CK2
 
-Module không được tự tạo nhiều bản dữ liệu rải rác trong source.
-
-Dữ liệu test đặt dưới:
+Ưu tiên:
 
 ```text
-tests/sample_files/
+1. SQLite schema + Storage interface
+2. Reader + OCR
+3. Extraction + Mapping + Normalization
+4. Import normalized records vào SQLite
+5. Search Engine đọc từ SQLite
+6. Backend gọi Upload/Search
+7. UI gọi Backend
+8. End-to-end test
 ```
 
-Mock data chung đặt:
-
-```text
-data/mock_data.xlsx
-```
-
-Docs chung đặt:
-
-```text
-docs/
-```
+Không chờ đến cuối CK2 mới ghép.
 
 ---
 
-## 13. Quy tắc dependency Python
+## 14. Quy trình thay đổi interface
 
-- thư viện mới phải thêm vào `requirements.txt` hoặc cơ chế quản lý dependency chung;
-- tránh cài library mà không ghi lại;
-- ưu tiên thư viện ổn định và có lý do sử dụng;
-- không để mỗi module yêu cầu Python version khác nhau.
+Nếu một thành viên muốn đổi output/input:
 
-Python version sẽ được leader chốt sau khi khảo sát môi trường các thành viên; đề xuất ban đầu là Python 3.10 hoặc 3.11.
+1. ghi rõ thay đổi đề xuất;
+2. nêu module bị ảnh hưởng;
+3. báo leader;
+4. leader duyệt;
+5. cập nhật tài liệu contract;
+6. thông báo thành viên liên quan;
+7. mới merge code thay đổi.
 
----
-
-## 14. Quy tắc test trước tích hợp
-
-Mỗi module phải có test tối thiểu cho đường chạy chính và lỗi phổ biến.
-
-Trước CK2 integration:
-
-```text
-Reader → có output mẫu
-Normalization → tạo được EmployeeList
-Storage → lưu/đọc EmployeeRecord
-Search → chạy trên mock data
-UI → hiển thị mock result
-```
-
-Sau đó mới thay mock bằng kết nối thật từng bước.
-
----
-
-## 15. Thứ tự tích hợp CK2
-
-Không ghép tất cả trong một lần. Thứ tự đề xuất:
-
-```text
-1. Reader → Normalization
-2. Normalization → Storage
-3. Storage → Search
-4. Search → Backend
-5. Backend → UI
-6. Upload end-to-end
-7. Search end-to-end
-```
-
-Mỗi bước chạy được mới chuyển bước tiếp theo.
-
----
-
-## 16. Nguyên tắc thay đổi interface
-
-Nếu một thành viên muốn thay đổi input/output:
-
-1. tạo đề xuất ngắn;
-2. chỉ rõ task/module bị ảnh hưởng;
-3. leader xác nhận;
-4. cập nhật `integration_rules.md` và nếu cần `data_schema.md`;
-5. thông báo nhóm;
-6. sau đó mới merge code sử dụng interface mới.
-
-Không tự thay interface trong branch cá nhân rồi yêu cầu các thành viên khác sửa theo.
-
----
-
-## 17. Điểm chưa khóa
-
-Các phần sau là placeholder, không phải quyết định cuối:
-
-- framework Backend;
-- database;
-- framework UI;
-- package structure chính xác;
-- kiểu model/class dùng trong Python;
-- AI/semantic search;
-- OCR.
-
-Sau review CK1, leader cập nhật phiên bản 0.2 và ghi rõ quyết định chính thức.
+Không tự đổi contract trong branch cá nhân.
