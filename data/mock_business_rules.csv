@@ -1,0 +1,4 @@
+﻿ma_quy_tac,pham_vi,ma_don_vi,loai_don_vi,ket_qua,can_cu,muc_uu_tien,ngay_hieu_luc,ngay_het_hieu_luc,dang_ap_dung,ghi_chu
+R001,LOAI_DON_VI,,LOAI_A,YES,Mock Business Rule A,10,2026-09-01,,1,Quy tắc giả lập để test
+R002,LOAI_DON_VI,,LOAI_B,NO,Mock Business Rule B,10,2026-09-01,,1,Quy tắc giả lập để test
+R003,DON_VI,DV15,,YES,Mock Override DV15,100,2026-09-01,,1,Override rule theo đơn vị

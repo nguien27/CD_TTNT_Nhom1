@@ -1,211 +1,95 @@
-# DATA SCHEMA — SCHEMA LINH HOẠT CHO THÔNG TIN NHÂN VIÊN
+# Data Schema
 
-**Phiên bản:** 0.2  
-**Ngày cập nhật:** 09/09/2026
-
-## 1. Nguyên tắc chính
-
-Hệ thống không sử dụng schema cố định gồm 6 trường. Từ phiên bản 0.2:
-
-- `ho_ten` là **trường nghiệp vụ bắt buộc duy nhất** để record tham gia tìm kiếm theo tên.
-- Tất cả trường còn lại là **dynamic extra fields — trường mở rộng động**.
-- Số lượng trường mở rộng phụ thuộc dữ liệu đầu vào và không bị giới hạn cố định.
-
-## 2. Cấu trúc record chuẩn nội bộ
-
-```python
+## 1. Cá nhân
+```json
 {
-    "ho_ten": "Nguyễn Văn A",
-    "ho_ten_chuan": "nguyen van a",
-    "thong_tin_mo_rong": {
-        "Mã NV": "NV001",
-        "Đơn vị": "Phòng CNTT",
-        "Chức vụ": "Chuyên viên",
-        "Dự án đang làm": "Hệ thống ERP",
-        "Kỹ năng": "Python, SQL"
-    }
+  "id": 1,
+  "ma_nhan_vien": "NV001",
+  "ho_ten": "Nguyễn Văn A",
+  "ho_ten_chuan": "nguyen van a",
+  "ma_don_vi": "DV01",
+  "ten_don_vi": "Trung tâm X",
+  "thong_tin_mo_rong": {}
 }
 ```
 
-### Giải thích
-
-- `ho_ten`: tên gốc dùng hiển thị.
-- `ho_ten_chuan`: tên đã chuẩn hóa để tìm kiếm; có thể đưa về chữ thường, gộp khoảng trắng, tạo bản không dấu.
-- `thong_tin_mo_rong`: JSON/dictionary chứa **mọi trường còn lại** của record.
-
-## 3. Nhận diện `ho_ten`
-
-Các alias ban đầu:
-
-| Tên trường nguồn | Canonical field |
-|---|---|
-| Họ tên | `ho_ten` |
-| Họ và tên | `ho_ten` |
-| Tên nhân viên | `ho_ten` |
-| Tên NV | `ho_ten` |
-| Tên CBCNV | `ho_ten` |
-| Họ tên nhân viên | `ho_ten` |
-| Full Name | `ho_ten` |
-| Employee Name | `ho_ten` |
-| Staff Name | `ho_ten` |
-
-Việc mở rộng alias phải thông qua leader hoặc cập nhật tài liệu chung.
-
-## 4. Trường mở rộng
-
-Tất cả trường khác được giữ lại. Ví dụ:
-
-- Mã NV
-- Mã cán bộ
-- Đơn vị
-- Phòng ban
-- Chức vụ
-- Email
-- Số điện thoại
-- Dự án đang làm
-- Kỹ năng
-- Ngày vào làm
-- Trình độ
-- Chuyên môn
-- Địa điểm làm việc
-- Người quản lý
-- Bất kỳ trường mới nào xuất hiện trong file
-
-### Quy tắc bảo toàn
-
-Nếu file có 15 cột và một cột được ánh xạ thành `ho_ten`, 14 cột còn lại phải được giữ trong `thong_tin_mo_rong` nếu có giá trị.
-
-## 5. Validation
-
-### Cấp file
-
-- Không phát hiện được trường `ho_ten` → file không đủ điều kiện nhập vào kho tìm kiếm theo tên.
-- Hệ thống trả cảnh báo rõ ràng thay vì crash.
-
-### Cấp record
-
-- `ho_ten` rỗng / null / chỉ có khoảng trắng → record không hợp lệ cho search; đánh dấu lỗi hoặc bỏ qua record.
-- Các trường mở rộng rỗng → có thể bỏ khỏi JSON hoặc lưu `null` theo implementation thống nhất.
-
-## 6. Chuẩn hóa họ tên
-
-Ví dụ:
-
-```text
-"   NGUYỄN    VĂN   A "
-      ↓
-ho_ten = "NGUYỄN VĂN A"
-ho_ten_chuan = "nguyen van a"
-```
-
-Các bước gợi ý:
-
-1. trim đầu/cuối;
-2. gộp nhiều khoảng trắng;
-3. chuẩn hóa Unicode;
-4. tạo bản chữ thường;
-5. tạo bản không dấu cho search.
-
-Không được làm thay đổi `ho_ten` gốc dùng hiển thị ngoài các chuẩn hóa khoảng trắng cần thiết.
-
-## 7. Schema SQLite chính thức
-
-```sql
-CREATE TABLE IF NOT EXISTS nhan_vien (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    ho_ten TEXT NOT NULL,
-    ho_ten_chuan TEXT NOT NULL,
-    thong_tin_mo_rong TEXT NOT NULL DEFAULT '{}',
-    nguon_file TEXT,
-    nguon_sheet TEXT,
-    created_at TEXT DEFAULT CURRENT_TIMESTAMP
-);
-```
-
-### Lý do có `id` nội bộ
-
-- File có thể không có mã nhân viên.
-- Mã nhân viên có thể nằm trong trường mở rộng.
-- Hai người có thể trùng họ tên.
-- Không được dùng `ho_ten` làm khóa chính.
-
-## 8. Ví dụ file chỉ có 3 trường
-
-Nguồn:
-
-```text
-Họ tên | Đơn vị | Dự án
-```
-
-Record chuẩn:
-
-```python
+## 2. Đơn vị
+```json
 {
-    "ho_ten": "Nguyễn Văn A",
-    "ho_ten_chuan": "nguyen van a",
-    "thong_tin_mo_rong": {
-        "Đơn vị": "CNTT",
-        "Dự án": "ERP"
-    }
+  "id": 10,
+  "ma_don_vi": "DV01",
+  "ten_don_vi": "Trung tâm X",
+  "ten_don_vi_chuan": "trung tam x",
+  "loai_don_vi": "LOAI_B",
+  "thong_tin_mo_rong": {}
 }
 ```
 
-→ Hợp lệ.
-
-## 9. Ví dụ file có 15 trường
-
-Nếu file có:
-
-```text
-Họ tên, Mã NV, Đơn vị, Chức vụ, Email, SĐT, Dự án, Kỹ năng,
-Ngày vào làm, Trình độ, Chuyên môn, Địa điểm, Quản lý, Loại HĐ, Ghi chú
-```
-
-thì:
-
-- `Họ tên` → `ho_ten`;
-- 14 trường còn lại → `thong_tin_mo_rong`.
-
-Không được tự loại bỏ trường chỉ vì hệ thống chưa từng gặp tên cột đó.
-
-## 10. Ví dụ file không có họ tên
-
-Nguồn:
-
-```text
-Mã NV | Đơn vị | Chức vụ
-```
-
-Kết quả:
-
-```python
+## 3. Quy tắc chi trả
+```json
 {
-    "trang_thai": "error",
-    "ma_loi": "MISSING_NAME_FIELD",
-    "thong_bao": "Không phát hiện trường họ tên. File chưa thể dùng để tìm kiếm nhân viên theo tên."
+  "id": 1,
+  "ma_quy_tac": "R001",
+  "pham_vi": "DON_VI",
+  "ma_don_vi": "DV01",
+  "loai_don_vi": null,
+  "ket_qua": "YES",
+  "can_cu": "Mock Business Rule 01",
+  "muc_uu_tien": 100,
+  "ngay_hieu_luc": "2026-09-01",
+  "ngay_het_hieu_luc": null,
+  "dang_ap_dung": true,
+  "ghi_chu": "Quy tắc demo"
 }
 ```
 
-## 11. Search result schema
+`pham_vi`:
+- `DON_VI`
+- `LOAI_DON_VI`
 
-```python
+## 4. Thứ tự ưu tiên Rule Engine
+1. Quy tắc dành riêng cho đơn vị
+2. Quy tắc theo loại đơn vị
+3. Không có quy tắc phù hợp → `CHUA_XAC_DINH`
+
+## 5. Schema Mapping AI
+Input:
+```json
+{"cot_goc":"Employee Name"}
+```
+
+Output:
+```json
+{"cot_goc":"Employee Name","truong_du_doan":"HO_TEN","do_tin_cay":0.94}
+```
+
+## 6. Search Result
+Cá nhân:
+```json
 {
-    "id": 1,
-    "ho_ten": "Nguyễn Văn A",
-    "do_khop": 96.5,
-    "thong_tin_mo_rong": {
-        "Mã NV": "NV001",
-        "Đơn vị": "CNTT",
-        "Dự án": "ERP",
-        "Kỹ năng": "Python"
-    }
+  "loai_doi_tuong": "ca_nhan",
+  "id": 1,
+  "ma_nhan_vien": "NV001",
+  "ho_ten": "Nguyễn Văn A",
+  "ma_don_vi": "DV01",
+  "ten_don_vi": "Trung tâm X",
+  "do_khop": 98.5
 }
 ```
 
-## 12. Nguyên tắc UI
+Đơn vị:
+```json
+{
+  "loai_doi_tuong": "don_vi",
+  "id": 10,
+  "ma_don_vi": "DV01",
+  "ten_don_vi": "Trung tâm X",
+  "loai_don_vi": "LOAI_B",
+  "do_khop": 97.2
+}
+```
 
-UI không được giả định cố định các cột `Mã NV`, `Đơn vị`, `Chức vụ`.
-
-- `ho_ten` luôn hiển thị.
-- Các trường khác được render động từ `thong_tin_mo_rong`.
-- Nếu nhiều kết quả có tập field khác nhau, UI có thể dùng card/detail view hoặc bảng động theo union các field.
+## 7. Rule Result
+```json
+{"ket_qua":"YES","ma_quy_tac":"R001","can_cu":"Mock Business Rule 01","ghi_chu":"..."}
+```
