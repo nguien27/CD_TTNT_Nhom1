@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="vi">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Tra cứu đối tượng chi trả</title>
+    <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>Tra cứu đối tượng chi trả</h1>
+        <p>GĐ1-05: Backend + UI, dùng Search/Rule từ GĐ1-04.</p>
+    </header>
+
+    <section class="toolbar">
+        <form id="upload-form">
+            <input id="file-input" type="file" accept=".csv,.xlsx,.docx,.pdf">
+            <button type="submit">Upload</button>
+        </form>
+        <div class="search-box">
+            <input id="search-input" type="text" placeholder="MSNV, tên nhân viên hoặc tên đơn vị">
+            <button id="search-button" type="button">Tìm kiếm</button>
+        </div>
+    </section>
+
+    <div id="message" class="message"></div>
+
+    <main>
+        <section>
+            <h2>Kết quả</h2>
+            <div id="results" class="results"></div>
+        </section>
+        <aside>
+            <h2>Chi tiết</h2>
+            <div id="detail" class="detail"><p>Chọn một kết quả để xem chi tiết.</p></div>
+        </aside>
+    </main>
+</div>
+<script src="/static/app.js"></script>
+</body>
+</html>

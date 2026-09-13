@@ -1,0 +1,25 @@
+
+# File Reader
+openpyxl>=3.1.0
+pandas>=2.0.0
+python-docx>=1.0.0
+PyMuPDF>=1.24.0
+pdfplumber>=0.11.0
+
+# Test data generation / processing
+Pillow>=10.0.0
+reportlab>=4.0.0
+
+# OCR engines are optional during GD1 benchmarking.
+# Install only the engine you want to test.
+
+# PaddleOCR
+# paddlepaddle>=2.6.0
+# paddleocr>=2.7.0
+
+# EasyOCR
+# easyocr>=1.7.0
+
+# Tesseract Python wrapper
+# Note: Tesseract-OCR and Vietnamese language data must also be installed separately.
+# pytesseract>=0.3.10

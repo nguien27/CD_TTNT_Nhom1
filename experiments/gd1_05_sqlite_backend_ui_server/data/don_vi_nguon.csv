@@ -1,0 +1,55 @@
+﻿ma_dv,ten_dv,dv_cha,nhom_he
+DV00001,Bộ Công an,,CA
+DV00002,Cục Chính trị (CA),DV00001,CA
+DV00003,Phòng Nhân sự - Cục Chính trị (CA),DV00002,CA
+DV00004,Phòng Công nghệ - Cục Chính trị (CA),DV00002,CA
+DV00005,Phòng Truyền thông - Cục Chính trị (CA),DV00002,CA
+DV00006,Phòng Tác chiến - Cục Chính trị (CA),DV00002,CA
+DV00007,Cục Tham mưu (CA),DV00001,CA
+DV00008,Phòng Hành chính - Cục Tham mưu (CA),DV00007,CA
+DV00009,Phòng Truyền thông - Cục Tham mưu (CA),DV00007,CA
+DV00010,Phòng Nhân sự - Cục Tham mưu (CA),DV00007,CA
+DV00011,Phòng Pháp chế - Cục Tham mưu (CA),DV00007,CA
+DV00012,Phòng Thanh tra - Cục Tham mưu (CA),DV00007,CA
+DV00013,Phòng Tác chiến - Cục Tham mưu (CA),DV00007,CA
+DV00014,Cục Tổ chức cán bộ (CA),DV00001,CA
+DV00015,Phòng Công nghệ - Cục Tổ chức cán bộ (CA),DV00014,CA
+DV00016,Phòng Kỹ thuật - Cục Tổ chức cán bộ (CA),DV00014,CA
+DV00017,Phòng Thanh tra - Cục Tổ chức cán bộ (CA),DV00014,CA
+DV00018,Cục Kế hoạch - Tài chính (CA),DV00001,CA
+DV00019,Phòng Pháp chế - Cục Kế hoạch - Tài chính (CA),DV00018,CA
+DV00020,Phòng Tác chiến - Cục Kế hoạch - Tài chính (CA),DV00018,CA
+DV00021,Phòng Hành chính - Cục Kế hoạch - Tài chính (CA),DV00018,CA
+DV00022,Phòng Thanh tra - Cục Kế hoạch - Tài chính (CA),DV00018,CA
+DV00023,Cục Quân huấn (CA),DV00001,CA
+DV00024,Phòng Thanh tra - Cục Quân huấn (CA),DV00023,CA
+DV00025,Phòng Đào tạo - Cục Quân huấn (CA),DV00023,CA
+DV00026,Phòng Tác chiến - Cục Quân huấn (CA),DV00023,CA
+DV00027,Phòng Nhân sự - Cục Quân huấn (CA),DV00023,CA
+DV00028,Bộ Quốc phòng,,BQP
+DV00029,Cục Kỹ thuật (BQP),DV00028,BQP
+DV00030,Phòng Đào tạo - Cục Kỹ thuật (BQP),DV00029,BQP
+DV00031,Phòng Truyền thông - Cục Kỹ thuật (BQP),DV00029,BQP
+DV00032,Phòng Tác chiến - Cục Kỹ thuật (BQP),DV00029,BQP
+DV00033,Cục Tác chiến (BQP),DV00028,BQP
+DV00034,Phòng Pháp chế - Cục Tác chiến (BQP),DV00033,BQP
+DV00035,Phòng Công nghệ - Cục Tác chiến (BQP),DV00033,BQP
+DV00036,Phòng Nhân sự - Cục Tác chiến (BQP),DV00033,BQP
+DV00037,Cục Chính trị (BQP),DV00028,BQP
+DV00038,Phòng Nhân sự - Cục Chính trị (BQP),DV00037,BQP
+DV00039,Phòng Công nghệ - Cục Chính trị (BQP),DV00037,BQP
+DV00040,Phòng Tác chiến - Cục Chính trị (BQP),DV00037,BQP
+DV00041,Phòng Thanh tra - Cục Chính trị (BQP),DV00037,BQP
+DV00042,Phòng Đào tạo - Cục Chính trị (BQP),DV00037,BQP
+DV00043,Phòng Pháp chế - Cục Chính trị (BQP),DV00037,BQP
+DV00044,Cục Tham mưu (BQP),DV00028,BQP
+DV00045,Phòng Truyền thông - Cục Tham mưu (BQP),DV00044,BQP
+DV00046,Phòng Kỹ thuật - Cục Tham mưu (BQP),DV00044,BQP
+DV00047,Phòng Nhân sự - Cục Tham mưu (BQP),DV00044,BQP
+DV00048,Phòng Hành chính - Cục Tham mưu (BQP),DV00044,BQP
+DV00049,Phòng Đào tạo - Cục Tham mưu (BQP),DV00044,BQP
+DV00050,Cục Kế hoạch - Tài chính (BQP),DV00028,BQP
+DV00051,Phòng Tác chiến - Cục Kế hoạch - Tài chính (BQP),DV00050,BQP
+DV00052,Phòng Nhân sự - Cục Kế hoạch - Tài chính (BQP),DV00050,BQP
+DV00053,Phòng Kỹ thuật - Cục Kế hoạch - Tài chính (BQP),DV00050,BQP
+DV00054,Phòng Thanh tra - Cục Kế hoạch - Tài chính (BQP),DV00050,BQP

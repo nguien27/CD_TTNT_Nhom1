@@ -1,0 +1,2 @@
+# GD1-04 experiment dependencies
+rapidfuzz>=3.9,<4
